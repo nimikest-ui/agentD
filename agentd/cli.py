@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""
+AgentD Command-Line Interface.
+
+Provides the 'D' shortcut command and 'agentd' full command.
+"""
+
+import sys
+import subprocess
+import argparse
+from pathlib import Path
+
+def get_deepagents_path():
+    """Locate the deepagents CLI."""
+    # Try to find deepagents in the current environment
+    try:
+        result = subprocess.run(
+            ["which", "deepagents"],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+
+    # Fallback paths
+    fallback_paths = [
+        Path.home() / ".venv" / "bin" / "deepagents",
+        Path("/opt/deepagents/bin/deepagents"),
+        Path("/usr/local/bin/deepagents"),
+    ]
+
+    for path in fallback_paths:
+        if path.exists():
+            return str(path)
+
+    raise FileNotFoundError(
+        "deepagents not found. Install with: pip install deepagents"
+    )
+
+def main():
+    """Main entry point for AgentD CLI."""
+    parser = argparse.ArgumentParser(
+        description="AgentD - LLM Agent Framework",
+        prog="D" if sys.argv[0].endswith("D") else "agentd",
+    )
+
+    parser.add_argument(
+        "-M", "--model",
+        default="claude-cli",
+        help="Model to use (default: claude-cli)"
+    )
+
+    parser.add_argument(
+        "-n", "--non-interactive",
+        help="Run non-interactive task"
+    )
+
+    parser.add_argument(
+        "-t", "--thread-id",
+        help="Resume specific thread/conversation"
+    )
+
+    parser.add_argument(
+        "-r", "--resume",
+        action="store_true",
+        help="Resume last conversation"
+    )
+
+    parser.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="Auto-approve all tool calls (dangerous!)"
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 0.1.0"
+    )
+
+    # Parse known args, pass rest to deepagents
+    args, unknown = parser.parse_known_args()
+
+    # Build deepagents command
+    try:
+        deepagents_path = get_deepagents_path()
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    cmd = [deepagents_path]
+
+    # Add model
+    if args.model != "claude-cli":
+        cmd.extend(["-M", args.model])
+    else:
+        cmd.extend(["-M", "claude-cli"])
+
+    # Add flags (TUI mode with all yes)
+    cmd.extend(["-S", "all"])
+
+    # Auto-approve if requested
+    if args.auto_approve:
+        cmd.append("-y")
+
+    # Resume
+    if args.resume:
+        cmd.append("-r")
+    elif args.thread_id:
+        cmd.extend(["--thread-id", args.thread_id])
+
+    # Non-interactive task
+    if args.non_interactive:
+        cmd.extend(["-n", args.non_interactive])
+
+    # Add unknown args
+    cmd.extend(unknown)
+
+    # Execute
+    try:
+        sys.exit(subprocess.run(cmd).returncode)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+    except FileNotFoundError:
+        print(f"Error: deepagents not found at {deepagents_path}", file=sys.stderr)
+        sys.exit(1)
+
+def main_d():
+    """Entry point for 'D' shortcut with auto-approval defaults."""
+    # Insert auto-approval by default for 'D' command
+    if "--auto-approve" not in sys.argv and "-y" not in sys.argv:
+        sys.argv.insert(1, "--auto-approve")
+    main()
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,11 @@
+#!/bin/bash
+# AgentD Quick Shortcut - Auto-approving TUI
+
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Activate venv
+source /root/lang/.venv/bin/activate
+
+# Run deepagents with all flags + auto-approve
+deepagents -M claude-cli -S all -y "$@"
