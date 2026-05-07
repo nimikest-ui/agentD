@@ -1,99 +1,92 @@
 ---
 name: deep-research
-description: "Complete research pipeline with data gathering, processing, analysis, and knowledge storage. Orchestrates tool calling to investigate topics thoroughly and persist findings."
+description: "Structured research pipeline that gathers data into a session directory, processes it, analyzes for patterns, then extracts into memory, knowledge graph, and reusable skills."
 license: MIT
 compatibility: designed for agentD
 ---
 
 # Deep Research Skill
 
-Execute a complete research pipeline: gather raw data → process → analyze → store in memory and knowledge graph.
+Execute the complete research pipeline. Data flows from raw gathering → processing → analysis → knowledge extraction.
 
-## Available Tools
+## Research Directory Structure
 
-You have access to these functions during research:
+Create research session: `~/.agentd/research/{research-name}/`
+```
+research-name/
+├── raw_data/          (gathered from browse_url, search_web, scrape_content)
+├── processed/         (cleaned via process_markdown, extract_entities, structure_findings)
+├── analysis.json      (patterns via analyze_patterns, assess_impact, identify_gaps)
+├── findings.md        (synthesis of all discoveries)
+└── metadata.json      (what becomes memory/skills)
+```
 
-### Data Gathering
-- `browse_url(url)` - Fetch and extract content from a URL
-- `search_web(query)` - Search and gather web information
-- `scrape_content(url)` - Extract structured data from web pages
+## Tool Functions Available
 
-### Data Processing
-- `process_markdown(raw_data)` - Convert raw content to clean markdown
-- `extract_entities(text)` - Identify key entities, dates, relationships
-- `structure_findings(data)` - Organize information hierarchically
+### Phase 1: Data Gathering
+Use these to collect information:
+- `browse_url(url)` → raw content file in `raw_data/`
+- `search_web(query)` → search results in `raw_data/`
+- `scrape_content(url)` → extracted page in `raw_data/`
 
-### Analysis
-- `analyze_patterns(data)` - Find patterns and connections in data
-- `assess_impact(findings)` - Evaluate significance and implications
-- `identify_gaps(research)` - Find missing information
+### Phase 2: Data Processing
+Clean and structure the raw data:
+- `process_markdown(raw_data)` → convert to clean markdown
+- `extract_entities(text)` → identify entities, save to `processed/`
+- `structure_findings(data)` → organize hierarchically, save to `processed/`
 
-### Knowledge Storage
-- `save_to_memory(fact, category)` - Store in persistent memory
-- `create_graph_node(name, type, properties)` - Add to knowledge graph
-- `link_nodes(from_node, relationship, to_node)` - Create graph connections
-- `save_skill_insight(topic, finding)` - Store as reusable skill
+### Phase 3: Analysis
+Find patterns and significance:
+- `analyze_patterns(data)` → connections and clusters, save to `analysis.json`
+- `assess_impact(findings)` → evaluate significance and implications
+- `identify_gaps(research)` → find missing information
 
-## Research Pipeline
+### Phase 4: Knowledge Extraction
+Transform into reusable knowledge:
+- `save_to_memory(fact, category)` → persistent memory
+- `create_graph_node(name, type, properties)` → knowledge graph
+- `link_nodes(from_node, relationship, to_node)` → create relationships
+- `save_skill_insight(topic, finding)` → new skill file in `.deepagents/skills/`
 
-### Phase 1: Clarify & Plan
-1. Understand what you're researching
-2. Break into researchable sub-questions
-3. Identify what data sources you'll need
+## Execution Pipeline
 
-### Phase 2: Gather Data
-1. Search and browse multiple authoritative sources
-2. Collect both raw data and expert perspectives
-3. Document source URLs and credentials
+1. **Initialize**: Create research directory with name and metadata
+2. **Gather**: Use browse_url, search_web, scrape_content → populate raw_data/
+3. **Process**: Use process_markdown, extract_entities, structure_findings → populate processed/
+4. **Analyze**: Use analyze_patterns, assess_impact, identify_gaps → write analysis.json
+5. **Extract**: Parse analysis and:
+   - Call save_to_memory() for key facts
+   - Call create_graph_node() for entities
+   - Call link_nodes() for relationships
+   - Call save_skill_insight() for discovered methodologies → creates new skill
+6. **Report**: Generate findings.md with all discoveries and next steps
 
-### Phase 3: Process Raw Data
-1. Clean and structure the gathered information
-2. Extract key entities (people, organizations, dates, technical terms)
-3. Identify primary claims and supporting evidence
+## Key Principle
 
-### Phase 4: Analyze
-1. Look for patterns, relationships, contradictions
-2. Cross-reference claims across sources
-3. Assess confidence levels for each finding
-4. Evaluate business/technical impact
+All data stays in one research directory. Analysis happens on the complete dataset. Discoveries are then distributed to:
+- **Memory** (facts you'll use)
+- **Graph** (how things relate)
+- **Skills** (processes you discovered)
 
-### Phase 5: Store Knowledge
-1. Save key facts to memory for future use
-2. Create graph nodes for major entities
-3. Link related concepts together
-4. Document gaps for future research
+## Example
 
-### Phase 6: Synthesize & Report
-1. Create comprehensive summary with sources
-2. Highlight key insights and implications
-3. Document uncertainty and assumptions
-4. Suggest next research directions
+User: "Research AI safety in 2024"
+
+1. Create: `~/.agentd/research/ai-safety-2024/`
+2. Gather: browse regulations, incidents, papers → `raw_data/`
+3. Process: extract orgs, dates, claims → `processed/`
+4. Analyze: find patterns (which orgs active? which countries leading?) → `analysis.json`
+5. Extract:
+   - Memory: "AI safety regulations increased 2024"
+   - Graph nodes: Organization "DeepMind", Category "Safety Research"
+   - Links: DeepMind -publishes→ Safety Papers
+   - Skill: New skill "ai-safety-analysis" with methodology discovered
+6. Report: findings.md with sources, confidence, gaps
 
 ## Best Practices
 
-- **Multiple sources**: Never rely on one source for complex topics
-- **Verify claims**: Cross-reference critical information
-- **Document everything**: Track what you found, where, and how confident you are
-- **Distinguish fact from opinion**: Be clear about what's verified vs. interpretive
-- **Store incrementally**: Save findings as you discover them, not at the end
-- **Connect knowledge**: Link related findings in the graph as patterns emerge
-- **Be transparent about gaps**: Document what you don't know yet
-
-## Example Flow
-
-User: "Research AI safety concerns in 2024"
-
-1. Plan: Identify sub-questions (regulations, incidents, technical risks, industry response)
-2. Gather: Browse regulations, incident reports, research papers, company announcements
-3. Process: Extract key events, timelines, affected organizations, technical details
-4. Analyze: Find patterns (which countries leading? which companies proactive? what technical approaches?), assess real vs. perceived risk
-5. Store: Create nodes for regulators, incidents, organizations, link them together
-6. Report: Comprehensive summary with sources, confidence levels, identified gaps
-
-## Common Pitfalls to Avoid
-
-- Stopping research too early - you need multiple perspectives
-- Confusing correlation with causation - verify before claiming relationships
-- Ignoring contradicting information - document disagreements
-- Overgeneralizing from limited data - be specific about scope
-- Forgetting to store findings - don't lose insights by not documenting them
+- **One directory per research** - Keeps all data together
+- **Process incrementally** - Don't wait until end to save findings
+- **Extract all knowledge types** - Facts, relationships, and processes
+- **Create skills from discoveries** - Turn "how to X" findings into reusable skills
+- **Document gaps** - Identify what still needs research for next iteration
