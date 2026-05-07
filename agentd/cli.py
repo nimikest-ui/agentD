@@ -10,8 +10,8 @@ import subprocess
 import argparse
 from pathlib import Path
 
-def get_deepagents_path():
-    """Locate the deepagents CLI."""
+def get_tui_engine_path():
+    """Locate the TUI engine (deepagents) used by agentD."""
     # Try to find deepagents in the current environment
     try:
         result = subprocess.run(
@@ -37,7 +37,7 @@ def get_deepagents_path():
             return str(path)
 
     raise FileNotFoundError(
-        "deepagents not found. Install with: pip install deepagents"
+        "AgentD TUI engine not found. Install with: pip install -e ."
     )
 
 def main():
@@ -81,17 +81,17 @@ def main():
         version="%(prog)s 0.1.0"
     )
 
-    # Parse known args, pass rest to deepagents
+    # Parse known args, pass rest to TUI engine
     args, unknown = parser.parse_known_args()
 
-    # Build deepagents command
+    # Build agentD command
     try:
-        deepagents_path = get_deepagents_path()
+        tui_engine_path = get_tui_engine_path()
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    cmd = [deepagents_path]
+    cmd = [tui_engine_path]
 
     # Add model
     if args.model != "claude-cli":
@@ -126,7 +126,7 @@ def main():
         print("\nInterrupted.", file=sys.stderr)
         sys.exit(130)
     except FileNotFoundError:
-        print(f"Error: deepagents not found at {deepagents_path}", file=sys.stderr)
+        print(f"Error: AgentD TUI engine not found at {tui_engine_path}", file=sys.stderr)
         sys.exit(1)
 
 def main_d():

@@ -1,4 +1,4 @@
-# AgentD / DeepAgents - Complete Slash Commands Reference
+# AgentD - Complete Slash Commands Reference
 
 **All available commands in the TUI (Terminal User Interface)**
 
@@ -54,7 +54,7 @@ Closes the TUI gracefully.
 ```bash
 /version
 ```
-Displays agentd/deepagents version information.
+Displays agentd version information.
 
 ---
 
@@ -327,7 +327,7 @@ Shows what's new in recent releases.
 ```bash
 /docs
 ```
-Opens official documentation (agentd/deepagents docs).
+Opens official documentation (agentd docs).
 
 ### `/feedback`
 **Send feedback to developers**
