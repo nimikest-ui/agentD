@@ -11,11 +11,11 @@ import argparse
 from pathlib import Path
 
 def get_tui_engine_path():
-    """Locate the TUI engine (deepagents) used by agentD."""
-    # Try to find deepagents in the current environment
+    """Locate the TUI engine (agentd) used by agentD."""
+    # Try to find agentd in the current environment
     try:
         result = subprocess.run(
-            ["which", "deepagents"],
+            ["which", "agentd"],
             capture_output=True,
             text=True,
             check=False
@@ -27,9 +27,9 @@ def get_tui_engine_path():
 
     # Fallback paths
     fallback_paths = [
-        Path.home() / ".venv" / "bin" / "deepagents",
-        Path("/opt/deepagents/bin/deepagents"),
-        Path("/usr/local/bin/deepagents"),
+        Path.home() / ".venv" / "bin" / "agentd",
+        Path("/opt/agentd/bin/agentd"),
+        Path("/usr/local/bin/agentd"),
     ]
 
     for path in fallback_paths:
