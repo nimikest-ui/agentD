@@ -202,7 +202,7 @@ User Command (D)
     ↓
 agentd.cli.main_d()
     ↓
-deepagents -M claude-cli -S all -y
+TUI Engine (deepagents backend)
     ↓
 AgentDModel (LangChain wrapper)
     ↓
