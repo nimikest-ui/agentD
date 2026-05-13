@@ -6,6 +6,7 @@ Bridges LangChain with the Claude binary for API-key-free operation.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import selectors
@@ -29,6 +30,9 @@ from pydantic import Field
 
 AGENTD_CLI_PROVIDER = "agentd-cli"
 AGENTD_CLI_DEFAULT_MODEL = "sonnet"
+
+COPILOT_CLI_PROVIDER = "copilot-cli"
+COPILOT_CLI_DEFAULT_MODEL = "copilot"
 
 
 class AgentDModel(BaseChatModel):
@@ -257,6 +261,30 @@ class AgentDModel(BaseChatModel):
         )
         return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response (async).
+        
+        Uses asyncio.to_thread to run blocking CLI operations in a separate thread,
+        completely isolating from the async event loop and blockbuster detection.
+        """
+        system_prompt, user_prompt = self._messages_to_prompt(messages)
+        cmd = self._build_command(system_prompt, user_prompt)
+        
+        # asyncio.to_thread is cleaner than run_in_executor and avoids blockbuster issues
+        full_text, _ = await asyncio.to_thread(self._run_cli, cmd)
+        
+        ai_message = AIMessage(
+            content=full_text,
+            usage_metadata=self.last_usage if self.last_usage else None
+        )
+        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
     def _stream(
         self,
         messages: list[BaseMessage],
@@ -302,8 +330,145 @@ class AgentDModel(BaseChatModel):
                 if run_manager:
                     run_manager.on_llm_new_token(text, chunk=chunk)
                 yield chunk
-            time.sleep(0.01)
+            # Use event.wait() instead of sleep to avoid blocking
+            if not done.is_set():
+                done.wait(timeout=0.01)
 
-        t.join()
+        # Don't join - let daemon thread clean up on its own
         if error_holder:
             raise error_holder[0]
+
+
+class CopilotModel(AgentDModel):
+    """Copilot CLI-backed model reusing AgentDModel behavior but using the 'copilot' binary."""
+
+    model: str = COPILOT_CLI_DEFAULT_MODEL
+
+    def __init__(self, **data):
+        if "cli_binary" not in data or not data["cli_binary"]:
+            # Prefer system-installed copilot, then common install locations
+            candidates = [
+                shutil.which("copilot"),
+                shutil.which("copilot-cli"),
+                "/usr/local/bin/copilot",
+                "/root/.local/bin/copilot",
+                "/root/.local/share/pipx/venvs/deepagents/bin/copilot",
+                "/usr/bin/copilot",
+            ]
+            binary = next((p for p in candidates if p), "/usr/bin/copilot")
+            data["cli_binary"] = binary
+        super().__init__(**data)
+
+    @property
+    def _llm_type(self) -> str:
+        return "copilot-cli"
+
+    def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
+        return {"ls_provider": COPILOT_CLI_PROVIDER, "ls_model_name": self.model}
+
+    def _build_command(self, system_prompt: str, user_prompt: str) -> list[str]:
+        """Build the copilot CLI subprocess command (different flags than claude CLI)."""
+        # Copilot CLI uses --prompt for non-interactive mode and --output-format json
+        cmd = [
+            self.cli_binary,
+            "--output-format",
+            "json",
+            "--allow-all",  # Enable all permissions for non-interactive use
+        ]
+        if system_prompt:
+            # Copilot CLI doesn't have --append-system-prompt, so we prepend to the prompt
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+        else:
+            full_prompt = user_prompt
+        cmd.extend(["--prompt", full_prompt])
+        return cmd
+
+    def _run_cli(
+        self,
+        cmd: list[str],
+        on_chunk: Optional[callable] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Run copilot CLI and parse JSONL output format."""
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        sel = selectors.DefaultSelector()
+        assert process.stdout is not None
+        assert process.stderr is not None
+        sel.register(process.stdout, selectors.EVENT_READ)
+        sel.register(process.stderr, selectors.EVENT_READ)
+
+        start = time.monotonic()
+        text_chunks: list[str] = []
+        session_id: Optional[str] = None
+        stderr_buf: list[str] = []
+        usage: dict[str, Any] = {}
+
+        while sel.get_map():
+            remaining = self.call_timeout - (time.monotonic() - start)
+            if remaining <= 0:
+                process.kill()
+                raise TimeoutError(
+                    f"Copilot CLI timed out after {self.call_timeout}s"
+                )
+
+            for key, _ in sel.select(timeout=remaining):
+                line = key.fileobj.readline()
+                if not line:
+                    sel.unregister(key.fileobj)
+                    continue
+
+                if key.fileobj is process.stderr:
+                    stderr_buf.append(line)
+                    continue
+
+                raw = line.strip()
+                if not raw:
+                    continue
+
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+
+                # Parse copilot JSONL format
+                event_type = payload.get("type", "")
+                if event_type == "assistant.message_delta":
+                    delta = payload.get("data", {}).get("deltaContent", "")
+                    if delta:
+                        text_chunks.append(delta)
+                        if on_chunk:
+                            on_chunk(delta)
+                elif event_type == "assistant.message":
+                    # Final message event with full content
+                    content = payload.get("data", {}).get("content", "")
+                    if content and not text_chunks:
+                        text_chunks.append(content)
+                elif event_type == "result":
+                    # Result event with usage data
+                    usage = payload.get("data", {}).get("usage", {})
+
+        rc = process.wait()
+        if rc != 0:
+            stderr_text = "".join(stderr_buf).strip()
+            raise RuntimeError(
+                f"Copilot CLI exited with code {rc}: {stderr_text or '(no stderr)'}"
+            )
+
+        self.last_usage = usage
+        return "".join(text_chunks), session_id
+
+
+# Register models with the runtime registry so TUI/clients can discover them
+try:
+    from agentd.model_registry import register_model
+
+    register_model("sonnet", AGENTD_CLI_PROVIDER, display="Sonnet (Claude)", default_model=AGENTD_CLI_DEFAULT_MODEL)
+    register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI", default_model=COPILOT_CLI_DEFAULT_MODEL)
+except Exception:
+    # If registry is not available (older installs), silently skip registration
+    pass
