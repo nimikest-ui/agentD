@@ -10,6 +10,7 @@ def register_model(
     provider: str,
     display: Optional[str] = None,
     description: Optional[str] = None,
+    cost_tier: int = 3,
     default_model: Optional[str] = None,
 ) -> None:
     """Register a model with the registry.
@@ -19,12 +20,14 @@ def register_model(
         provider: The provider name (e.g., 'ollama', 'agentd-cli')
         display: Display name for UI menus
         description: Brief description of model capabilities
+        cost_tier: Relative cost (1=cheapest, 5=most expensive)
         default_model: Whether this is the default model for the provider
     """
     _registry[model_id] = {
         "provider": provider,
         "display": display or model_id,
         "description": description or "",
+        "cost_tier": cost_tier,
         "is_default": bool(default_model),
     }
 
@@ -49,19 +52,28 @@ def get_providers() -> set:
     return {info["provider"] for info in _registry.values()}
 
 
-def get_models() -> List[dict]:
+def get_models(sort_by_cost: bool = False) -> List[dict]:
     """Get all models as a list of dicts (TUI-compatible format).
 
     Returns a list of model info dicts with model_id, provider, display name, and description.
     This is the primary API for TUI integration.
+
+    Args:
+        sort_by_cost: If True, sort models from cheapest to most expensive
     """
-    return [
+    models = [
         {
             "model_id": model_id,
             "provider": info["provider"],
             "display": info["display"],
             "description": info.get("description", ""),
+            "cost_tier": info.get("cost_tier", 3),
             "is_default": info["is_default"],
         }
         for model_id, info in _registry.items()
     ]
+
+    if sort_by_cost:
+        models.sort(key=lambda m: m["cost_tier"])
+
+    return models

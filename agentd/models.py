@@ -853,57 +853,57 @@ def get_ollama_models() -> list[tuple[str, str]]:
 try:
     from agentd.model_registry import register_model
 
-    # Claude models via AgentD CLI
+    # Claude models via AgentD CLI (expensive)
     register_model("sonnet", AGENTD_CLI_PROVIDER, display="Claude Sonnet",
-                   description="Balanced speed & intelligence. Best for most tasks.", default_model=AGENTD_CLI_DEFAULT_MODEL)
+                   description="Balanced speed & intelligence. Best for most tasks.", cost_tier=4, default_model=AGENTD_CLI_DEFAULT_MODEL)
     register_model("opus", AGENTD_CLI_PROVIDER, display="Claude Opus",
-                   description="Most capable. Best for complex reasoning & analysis.")
+                   description="Most capable. Best for complex reasoning & analysis.", cost_tier=5)
     register_model("haiku", AGENTD_CLI_PROVIDER, display="Claude Haiku",
-                   description="Fastest & most compact. Best for real-time interactions.")
+                   description="Fastest & most compact. Best for real-time interactions.", cost_tier=3)
 
-    # Copilot CLI
+    # Copilot CLI (moderate cost)
     register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI",
-                   description="GitHub Copilot integration. Code-focused assistance.", default_model=COPILOT_CLI_DEFAULT_MODEL)
+                   description="GitHub Copilot integration. Code-focused assistance.", cost_tier=3, default_model=COPILOT_CLI_DEFAULT_MODEL)
 
-    # Kimi/Moonshot models (latest first)
+    # Kimi/Moonshot models (latest first, moderate-expensive)
     register_model("kimi-k2.6", KIMI_PROVIDER, display="Kimi K2.6 (Latest)",
-                   description="Latest multimodal model. 256k context. Best reasoning & vision.", default_model=KIMI_DEFAULT_MODEL)
+                   description="Latest multimodal model. 256k context. Best reasoning & vision.", cost_tier=4, default_model=KIMI_DEFAULT_MODEL)
     register_model("kimi-k2.5", KIMI_PROVIDER, display="Kimi K2.5",
-                   description="Multimodal model. 256k context. Strong across coding & vision.")
+                   description="Multimodal model. 256k context. Strong across coding & vision.", cost_tier=4)
     register_model("kimi-k2-0905-preview", KIMI_PROVIDER, display="Kimi K2 0905 Preview",
-                   description="Enhanced agentic coding. Improved front-end aesthetics & context understanding.")
+                   description="Enhanced agentic coding. Improved front-end aesthetics & context understanding.", cost_tier=4)
     register_model("kimi-k2-turbo-preview", KIMI_PROVIDER, display="Kimi K2 Turbo",
-                   description="High-speed K2. 60-100 tokens/sec output. 256k context.")
+                   description="High-speed K2. 60-100 tokens/sec output. 256k context.", cost_tier=4)
     register_model("kimi-k2-thinking", KIMI_PROVIDER, display="Kimi K2 Thinking",
-                   description="Long-term reasoning model. Multi-step problem solving. 256k context.")
+                   description="Long-term reasoning model. Multi-step problem solving. 256k context.", cost_tier=5)
     register_model("kimi-k2-thinking-turbo", KIMI_PROVIDER, display="Kimi K2 Thinking Turbo",
-                   description="Fast deep reasoning. 60-100 tokens/sec output.")
-    # Legacy models (deprecated)
+                   description="Fast deep reasoning. 60-100 tokens/sec output.", cost_tier=5)
+    # Legacy models (deprecated, cheaper)
     register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k (Legacy)",
-                   description="8k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
+                   description="8k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
     register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)",
-                   description="32k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
+                   description="32k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
     register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)",
-                   description="128k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
+                   description="128k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
 
     # Xiaomi MiMo models (latest first)
-    # V2.5 series (April 2026)
+    # V2.5 series (April 2026) - moderate cost
     register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro",
-                   description="Latest professional model. Matches frontier benchmarks at lower cost.", default_model=XIOMIMIMO_DEFAULT_MODEL)
+                   description="Latest professional model. Matches frontier benchmarks at lower cost.", cost_tier=3, default_model=XIOMIMIMO_DEFAULT_MODEL)
     register_model("mimo-v2.5", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5",
-                   description="General-purpose V2.5. Strong performance & cost-effective.")
-    # V2 series (March 2026)
+                   description="General-purpose V2.5. Strong performance & cost-effective.", cost_tier=2)
+    # V2 series (March 2026) - cheaper
     register_model("mimo-v2-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Pro (Reasoning)",
-                   description="Specialized for reasoning tasks & agent workflows. High quality outputs.")
+                   description="Specialized for reasoning tasks & agent workflows. High quality outputs.", cost_tier=2)
     register_model("mimo-v2-omni", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Omni (Multimodal)",
-                   description="Full multimodal support. Text & image understanding.")
+                   description="Full multimodal support. Text & image understanding.", cost_tier=2)
     register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)",
-                   description="Text-to-speech synthesis. Audio generation from text.")
-    # Open-weight models
+                   description="Text-to-speech synthesis. Audio generation from text.", cost_tier=2)
+    # Open-weight models - cheapest
     register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)",
-                   description="Open-weight model. MIT license. Fast inference.")
+                   description="Open-weight model. MIT license. Fast inference.", cost_tier=1)
     register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)",
-                   description="Compact 7B parameter model. Open-source & lightweight.")
+                   description="Compact 7B parameter model. Open-source & lightweight.", cost_tier=1)
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()
@@ -928,6 +928,7 @@ try:
             OLLAMA_PROVIDER,
             display=f"Ollama: {model_id}",
             description=ollama_descriptions.get(model_id, "Local open-source model."),
+            cost_tier=1,  # Ollama local models are free
             default_model=model_id == OLLAMA_DEFAULT_MODEL
         )
         registered_ollama.add(model_id)
@@ -937,11 +938,14 @@ try:
         ollama_models = get_ollama_models()
         for model_id, display_name in ollama_models:
             if model_id not in registered_ollama:
+                # Cloud models are cheaper than dedicated APIs
+                cost_tier = 2 if "cloud" in display_name.lower() else 1
                 register_model(
                     model_id,
                     OLLAMA_PROVIDER,
                     display=display_name,
                     description="Available from Ollama Cloud or local instance.",
+                    cost_tier=cost_tier,
                 )
     except Exception:
         # Ollama might not be available, that's OK - we already registered the common models
