@@ -974,17 +974,9 @@ class KimiModel(BaseChatModel):
     ) -> ChatResult:
         """Generate a response using Moonshot API (sync).
 
-        Handles both sync and async contexts without blocking.
+        Always uses sync implementation to avoid blocking issues in async contexts.
         """
-        import asyncio
-        import concurrent.futures
-
-        # Always run in thread to avoid blocking the event loop
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                self._generate_sync, messages, stop, run_manager, **kwargs
-            )
-            return future.result(timeout=self.call_timeout)
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
@@ -1317,16 +1309,9 @@ class XiaomiModel(BaseChatModel):
     ) -> ChatResult:
         """Generate a response using Xiaomi API (sync).
 
-        Handles both sync and async contexts without blocking.
+        Always uses sync implementation to avoid blocking issues in async contexts.
         """
-        import concurrent.futures
-
-        # Always run in thread to avoid blocking the event loop
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                self._generate_sync, messages, stop, run_manager, **kwargs
-            )
-            return future.result(timeout=self.call_timeout)
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
