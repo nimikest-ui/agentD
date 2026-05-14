@@ -32,6 +32,7 @@ _PROVIDER_MAP = {
     "XIOMIMIMO_API_KEY": "xiomimimo",
     "OLLAMA_API_KEY": "ollama",
     "LANGSMITH_API_KEY": "langsmith",
+    "FIRECRAWL_API_KEY": "firecrawl",
 }
 
 
@@ -140,6 +141,7 @@ OLLAMA_API_KEY = "OLLAMA_API_KEY"
 MOONSHOT_API_KEY = "MOONSHOT_API_KEY"
 XIOMIMIMO_API_KEY = "XIOMIMIMO_API_KEY"
 LANGSMITH_API_KEY = "LANGSMITH_API_KEY"
+FIRECRAWL_API_KEY = "FIRECRAWL_API_KEY"
 
 # Supported credential keys for /auth command
 SUPPORTED_CREDENTIALS = {
@@ -147,6 +149,7 @@ SUPPORTED_CREDENTIALS = {
     MOONSHOT_API_KEY: "Kimi/Moonshot API Key (for Chinese LLM support)",
     XIOMIMIMO_API_KEY: "Xiaomi MiMo API Key (from xiaomimimo.com/settings/keys)",
     LANGSMITH_API_KEY: "LangSmith API Key (for tracing & observability at smith.langchain.com)",
+    FIRECRAWL_API_KEY: "Firecrawl API Key (from firecrawl.dev for web scraping/search)",
 }
 
 
