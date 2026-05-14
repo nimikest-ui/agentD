@@ -2,6 +2,7 @@
 AgentDModel - Custom LangChain BaseChatModel for Claude CLI integration.
 
 Bridges LangChain with the Claude binary for API-key-free operation.
+Integrated with LangSmith for automatic tracing and observability.
 """
 
 from __future__ import annotations
@@ -27,6 +28,11 @@ from langchain_core.messages import (
 )
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from pydantic import Field
+
+try:
+    from langsmith import traceable
+except ImportError:
+    traceable = None
 
 AGENTD_CLI_PROVIDER = "agentd-cli"
 AGENTD_CLI_DEFAULT_MODEL = "sonnet"
@@ -244,6 +250,20 @@ class AgentDModel(BaseChatModel):
         self.last_usage = usage
         return "".join(text_chunks), session_id
 
+    def _run_cli_traced(
+        self,
+        cmd: list[str],
+        on_chunk: Optional[callable] = None,
+    ) -> tuple[str, Optional[str]]:
+        """Run Claude CLI with LangSmith tracing if enabled."""
+        if traceable and os.environ.get("LANGSMITH_TRACING") == "true":
+            traced = traceable(
+                name=f"Claude {self.model}",
+                run_type="llm",
+            )(self._run_cli)
+            return traced(cmd, on_chunk=on_chunk)
+        return self._run_cli(cmd, on_chunk=on_chunk)
+
     def _generate(
         self,
         messages: list[BaseMessage],
@@ -254,7 +274,7 @@ class AgentDModel(BaseChatModel):
         """Generate a response (sync)."""
         system_prompt, user_prompt = self._messages_to_prompt(messages)
         cmd = self._build_command(system_prompt, user_prompt)
-        full_text, _ = self._run_cli(cmd)
+        full_text, _ = self._run_cli_traced(cmd)
         ai_message = AIMessage(
             content=full_text,
             usage_metadata=self.last_usage if self.last_usage else None
@@ -269,16 +289,16 @@ class AgentDModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response (async).
-        
+
         Uses asyncio.to_thread to run blocking CLI operations in a separate thread,
         completely isolating from the async event loop and blockbuster detection.
         """
         system_prompt, user_prompt = self._messages_to_prompt(messages)
         cmd = self._build_command(system_prompt, user_prompt)
-        
+
         # asyncio.to_thread is cleaner than run_in_executor and avoids blockbuster issues
-        full_text, _ = await asyncio.to_thread(self._run_cli, cmd)
-        
+        full_text, _ = await asyncio.to_thread(self._run_cli_traced, cmd)
+
         ai_message = AIMessage(
             content=full_text,
             usage_metadata=self.last_usage if self.last_usage else None
@@ -305,7 +325,7 @@ class AgentDModel(BaseChatModel):
 
         def run() -> None:
             try:
-                self._run_cli(cmd, on_chunk=on_chunk)
+                self._run_cli_traced(cmd, on_chunk=on_chunk)
             except BaseException as exc:
                 error_holder.append(exc)
             finally:

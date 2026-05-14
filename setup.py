@@ -29,8 +29,10 @@ setup(
     install_requires=[
         "langchain>=0.1.0",
         "langgraph>=0.0.1",
+        "langsmith>=0.0.1",
         "textual>=0.20.0",
         "pydantic>=2.0",
+        "anthropic>=0.7.0",
     ],
     entry_points={
         "console_scripts": [

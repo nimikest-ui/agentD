@@ -28,6 +28,13 @@ from agentd.research_tools import (
     link_nodes,
     save_skill_insight,
 )
+from agentd.tracing import (
+    configure_langsmith,
+    get_langsmith_client,
+    create_anthropic_client,
+    trace_run,
+    traceable,
+)
 
 __all__ = [
     "Agent",
@@ -51,5 +58,10 @@ __all__ = [
     "create_graph_node",
     "link_nodes",
     "save_skill_insight",
+    "configure_langsmith",
+    "get_langsmith_client",
+    "create_anthropic_client",
+    "trace_run",
+    "traceable",
     "__version__",
 ]
