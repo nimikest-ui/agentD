@@ -995,11 +995,12 @@ class KimiModel(BaseChatModel):
 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
-            text = e.response.text
+            text = e.response.text[:500]  # Limit to first 500 chars for debugging
             if status == 401 or status == 403:
                 raise RuntimeError(
                     f"Moonshot API authentication failed (HTTP {status}). "
                     f"Your API key may be invalid or expired. "
+                    f"Response: {text}. "
                     f"Run '/auth' in TUI to update your credentials."
                 )
             elif status == 429:
@@ -1079,11 +1080,12 @@ class KimiModel(BaseChatModel):
 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
-            text = e.response.text
+            text = e.response.text[:500]  # Limit to first 500 chars for debugging
             if status == 401 or status == 403:
                 raise RuntimeError(
                     f"Moonshot API authentication failed (HTTP {status}). "
                     f"Your API key may be invalid or expired. "
+                    f"Response: {text}. "
                     f"Run '/auth' in TUI to update your credentials."
                 )
             elif status == 429:
@@ -1175,11 +1177,12 @@ class KimiModel(BaseChatModel):
 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
-            text = e.response.text
+            text = e.response.text[:500]  # Limit to first 500 chars for debugging
             if status == 401 or status == 403:
                 raise RuntimeError(
                     f"Moonshot API authentication failed (HTTP {status}). "
                     f"Your API key may be invalid or expired. "
+                    f"Response: {text}. "
                     f"Run '/auth' in TUI to update your credentials."
                 )
             elif status == 429:
