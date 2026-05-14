@@ -599,6 +599,19 @@ class OllamaModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "ollama"
 
+    def bind_tools(self, tools: Any, *, tool_choice: Any = None, **kwargs: Any):
+        """Bind tools using ChatOpenAI with Ollama's OpenAI-compatible endpoint."""
+        from langchain_openai import ChatOpenAI
+        api_key = self.api_key or os.environ.get("OLLAMA_API_KEY", "placeholder")
+        # Derive OpenAI-compat base URL from native Ollama URL
+        base = self.base_url.rstrip("/")
+        if base.endswith("/api"):
+            openai_url = base + "/v1"  # https://ollama.com/api -> /api/v1
+        else:
+            openai_url = base + "/v1"  # http://localhost:11434 -> /v1
+        llm = ChatOpenAI(model=self.model, base_url=openai_url, api_key=api_key)
+        return llm.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+
     def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
         return {"ls_provider": OLLAMA_PROVIDER, "ls_model_name": self.model}
 
@@ -948,6 +961,13 @@ class KimiModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "kimi"
 
+    def bind_tools(self, tools: Any, *, tool_choice: Any = None, **kwargs: Any):
+        """Bind tools using ChatOpenAI (OpenAI-compatible API)."""
+        from langchain_openai import ChatOpenAI
+        api_key = self.api_key or os.environ.get("MOONSHOT_API_KEY", "placeholder")
+        llm = ChatOpenAI(model=self.model, base_url=self.base_url, api_key=api_key)
+        return llm.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+
     def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
         return {"ls_provider": KIMI_PROVIDER, "ls_model_name": self.model}
 
@@ -1280,6 +1300,13 @@ class XiaomiModel(BaseChatModel):
     @property
     def _llm_type(self) -> str:
         return "xiaomi"
+
+    def bind_tools(self, tools: Any, *, tool_choice: Any = None, **kwargs: Any):
+        """Bind tools using ChatOpenAI (OpenAI-compatible API)."""
+        from langchain_openai import ChatOpenAI
+        api_key = self.api_key or os.environ.get("XIOMIMIMO_API_KEY", "placeholder")
+        llm = ChatOpenAI(model=self.model, base_url=self.base_url, api_key=api_key)
+        return llm.bind_tools(tools, tool_choice=tool_choice, **kwargs)
 
     def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
         return {"ls_provider": XIOMIMIMO_PROVIDER, "ls_model_name": self.model}
