@@ -560,7 +560,33 @@ class OllamaModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """Generate a response using Ollama API (sync)."""
+        """Generate a response using Ollama API (sync).
+
+        Uses asyncio.to_thread to avoid blocking errors in async contexts.
+        """
+        import asyncio
+        import threading
+
+        # Check if we're in an event loop
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, use to_thread
+            return asyncio.run_coroutine_threadsafe(
+                self._agenerate(messages, stop, run_manager, **kwargs),
+                loop,
+            ).result()
+        except RuntimeError:
+            # No event loop, use blocking call
+            return self._generate_sync(messages, stop, run_manager, **kwargs)
+
+    def _generate_sync(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Internal sync implementation of _generate."""
         messages_dicts = self._convert_messages_to_dict(messages)
 
         payload = {
@@ -580,14 +606,35 @@ class OllamaModel(BaseChatModel):
                 timeout=self.call_timeout,
             )
             response.raise_for_status()
+            data = response.json()
+
+            # Check for Ollama error response
+            if "error" in data:
+                raise RuntimeError(f"Ollama error: {data['error']}")
+
+            content = data.get("message", {}).get("content", "")
+            if not content:
+                raise RuntimeError("Empty response from Ollama API")
+
+            ai_message = AIMessage(content=content)
+            return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(
+                f"Ollama API HTTP error {e.response.status_code}: {e.response.text}"
+            )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {self.base_url}. "
+                f"Make sure the service is running or check your API key. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Ollama request timed out after {self.call_timeout}s. "
+                f"The model might be processing a large request. Error: {e}"
+            )
         except Exception as e:
-            raise RuntimeError(f"Ollama API error: {e}")
-
-        data = response.json()
-        content = data.get("message", {}).get("content", "")
-
-        ai_message = AIMessage(content=content)
-        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+            raise RuntimeError(f"Ollama API error: {type(e).__name__}: {e}")
 
     async def _agenerate(
         self,
@@ -609,22 +656,42 @@ class OllamaModel(BaseChatModel):
         headers = self._build_headers()
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=self.call_timeout) as client:
                 response = await client.post(
                     url,
                     json=payload,
                     headers=headers,
-                    timeout=self.call_timeout,
                 )
                 response.raise_for_status()
+                data = response.json()
+
+                # Check for Ollama error response
+                if "error" in data:
+                    raise RuntimeError(f"Ollama error: {data['error']}")
+
+                content = data.get("message", {}).get("content", "")
+                if not content:
+                    raise RuntimeError("Empty response from Ollama API")
+
+                ai_message = AIMessage(content=content)
+                return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(
+                f"Ollama API HTTP error {e.response.status_code}: {e.response.text}"
+            )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {self.base_url}. "
+                f"Make sure the service is running or check your API key. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Ollama request timed out after {self.call_timeout}s. "
+                f"The model might be processing a large request. Error: {e}"
+            )
         except Exception as e:
-            raise RuntimeError(f"Ollama API error: {e}")
-
-        data = response.json()
-        content = data.get("message", {}).get("content", "")
-
-        ai_message = AIMessage(content=content)
-        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+            raise RuntimeError(f"Ollama API error: {type(e).__name__}: {e}")
 
     def _stream(
         self,
@@ -658,6 +725,11 @@ class OllamaModel(BaseChatModel):
                     if line.strip():
                         try:
                             data = json.loads(line)
+
+                            # Check for error in stream
+                            if "error" in data:
+                                raise RuntimeError(f"Ollama error: {data['error']}")
+
                             content = data.get("message", {}).get("content", "")
                             if content:
                                 chunk = ChatGenerationChunk(
@@ -668,8 +740,18 @@ class OllamaModel(BaseChatModel):
                                 yield chunk
                         except json.JSONDecodeError:
                             continue
+
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {self.base_url}. "
+                f"Make sure the service is running or check your API key. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Ollama request timed out after {self.call_timeout}s. Error: {e}"
+            )
         except Exception as e:
-            raise RuntimeError(f"Ollama streaming error: {e}")
+            raise RuntimeError(f"Ollama streaming error: {type(e).__name__}: {e}")
 
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
