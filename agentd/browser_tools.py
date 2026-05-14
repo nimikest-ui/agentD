@@ -11,6 +11,49 @@ import os
 import importlib.util
 BROWSER_USE_AVAILABLE = importlib.util.find_spec("browser_use") is not None
 
+
+def _make_browser_llm():
+    """Create a LangChain chat model for browser-use based on current TUI model config."""
+    import tomllib
+    config_path = os.path.expanduser("~/.deepagents/config.toml")
+    provider_spec = "agentd-cli:sonnet"
+    if os.path.exists(config_path):
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        provider_spec = config.get("models", {}).get("recent", provider_spec)
+
+    provider, _, model = provider_spec.partition(":")
+    if not model:
+        model = provider
+        provider = "agentd-cli"
+
+    if provider == "agentd-cli":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(model="claude-haiku-4-5-20251001")
+
+    providers = {}
+    if os.path.exists(config_path):
+        with open(config_path, "rb") as f:
+            cfg = tomllib.load(f)
+        providers = cfg.get("models", {}).get("providers", {})
+
+    prov_cfg = providers.get(provider, {})
+    api_key_env = prov_cfg.get("api_key_env", "")
+    api_key = os.environ.get(api_key_env, "placeholder")
+    base_url = prov_cfg.get("base_url")
+
+    _hardcoded_base_urls = {
+        "kimi": "https://api.moonshot.cn/v1",
+        "xiomimimo": "https://api.xiaoai.plus/v1",
+        "ollama": "https://ollama.com/v1",
+    }
+    if not base_url:
+        base_url = _hardcoded_base_urls.get(provider)
+
+    from langchain_openai import ChatOpenAI
+    return ChatOpenAI(model=model, base_url=base_url, api_key=api_key)
+
+
 try:
     from firecrawl import FirecrawlApp
     FIRECRAWL_AVAILABLE = True
@@ -99,17 +142,23 @@ class BrowserToolkit:
             return f"Firecrawl search error for '{query}': {e}"
 
     async def browser_task(self, instruction: str) -> Optional[str]:
-        """Execute task using Browser-Use"""
+        """Execute task using Browser-Use with the currently configured TUI model."""
         if not self.browser_available:
-            return None
-
+            return (
+                "Error: browser_use not available. "
+                "Run: /root/agentD/venv/bin/pip install browser-use "
+                "&& /root/agentD/venv/bin/playwright install chromium"
+            )
         try:
-            # Would require browser setup and LLM integration
-            # agent = BrowserAgent(task=instruction, llm=self.llm)
-            # return await agent.run()
-            return f"[Browser-Use would execute: {instruction}]"
+            from browser_use import Agent as BrowserAgent
+            llm = _make_browser_llm()
+            agent = BrowserAgent(task=instruction, llm=llm)
+            history = await agent.run()
+            if hasattr(history, "final_result"):
+                return str(history.final_result())
+            return str(history)
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Browser task error: {type(e).__name__}: {e}"
 
 
 # Convenience functions for AgentD
