@@ -907,21 +907,9 @@ class KimiModel(BaseChatModel):
     call_timeout: int = 300
 
     def __init__(self, **data):
-        import json
-        import logging
         from agentd.auth_store import get_credential
-
-        logger = logging.getLogger("agentd.kimi")
-
         if not data.get("api_key"):
-            api_key = get_credential("MOONSHOT_API_KEY") or ""
-            data["api_key"] = api_key
-            logger.info(json.dumps({
-                "event": "KimiModel.init",
-                "model": data.get("model", "unknown"),
-                "api_key_present": bool(api_key),
-                "api_key_length": len(api_key) if api_key else 0,
-            }))
+            data["api_key"] = get_credential("MOONSHOT_API_KEY") or ""
         super().__init__(**data)
 
     @property
@@ -969,13 +957,11 @@ class KimiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Internal sync implementation of _generate."""
-        import logging
-        logger = logging.getLogger("agentd.kimi")
-
         if not self.api_key:
-            error_msg = "MOONSHOT_API_KEY not found. Set it via environment variable MOONSHOT_API_KEY or use /auth command in TUI."
-            logger.error(json.dumps({"event": "KimiModel._generate_sync", "error": error_msg}))
-            raise RuntimeError(error_msg)
+            raise RuntimeError(
+                "MOONSHOT_API_KEY not found. Set it via environment variable "
+                "MOONSHOT_API_KEY or use /auth command in TUI."
+            )
 
         messages_dicts = self._convert_messages_to_dict(messages)
 
@@ -988,15 +974,6 @@ class KimiModel(BaseChatModel):
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         headers = self._build_headers()
 
-        logger.info(json.dumps({
-            "event": "KimiModel._generate_sync.request",
-            "model": self.model,
-            "url": url,
-            "api_key_present": bool(self.api_key),
-            "api_key_prefix": self.api_key[:10] + "..." if self.api_key else None,
-            "message_count": len(messages_dicts),
-        }))
-
         try:
             response = httpx.post(
                 url,
@@ -1008,35 +985,18 @@ class KimiModel(BaseChatModel):
             data = response.json()
 
             if "error" in data:
-                error_detail = data['error']
-                logger.error(json.dumps({
-                    "event": "KimiModel._generate_sync.api_error",
-                    "model": self.model,
-                    "error": str(error_detail),
-                }))
-                raise RuntimeError(f"Moonshot error: {error_detail}")
+                raise RuntimeError(f"Moonshot error: {data['error']}")
 
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             if not content:
                 raise RuntimeError("Empty response from Moonshot API")
 
-            logger.info(json.dumps({
-                "event": "KimiModel._generate_sync.success",
-                "model": self.model,
-                "content_length": len(content),
-            }))
             ai_message = AIMessage(content=content)
             return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
-            text = e.response.text[:500]  # Limit to first 500 chars for debugging
-            logger.error(json.dumps({
-                "event": "KimiModel._generate_sync.http_error",
-                "model": self.model,
-                "status": status,
-                "response_text": text,
-            }))
+            text = e.response.text[:500]
             if status == 401 or status == 403:
                 raise RuntimeError(
                     f"Moonshot API authentication failed (HTTP {status}). "

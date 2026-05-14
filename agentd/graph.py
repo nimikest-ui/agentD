@@ -20,21 +20,14 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
     Uses the proper model factory to instantiate the correct model class
     based on the model name (Kimi, Ollama, Copilot, Claude, etc).
     """
-    import json
-    import logging
     from agentd.core import Agent
     from agentd.memory import get_memories_prompt
     from langchain_core.messages import SystemMessage
 
-    logger = logging.getLogger("agentd.graph")
-
     # Use the Agent factory to create the correct model type
     try:
-        logger.info(json.dumps({"event": "_make_llm_node.create_model", "model_name": model_name}))
         model = Agent._create_model(model_name)
-        logger.info(json.dumps({"event": "_make_llm_node.model_created", "model_name": model_name, "model_type": type(model).__name__}))
     except Exception as e:
-        logger.error(json.dumps({"event": "_make_llm_node.create_model_failed", "model_name": model_name, "error": str(e), "error_type": type(e).__name__}))
         raise RuntimeError(
             f"Failed to initialize model '{model_name}': {type(e).__name__}: {e}. "
             f"Check that the model name is valid and required credentials are set."
@@ -44,8 +37,6 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
         try:
             thread_memories = state.get("_thread_memories", [])
             messages = list(state["messages"])
-
-            logger.info(json.dumps({"event": "llm_node.invoke", "model_name": model_name, "message_count": len(messages)}))
 
             memories_prompt = get_memories_prompt(thread_memories=thread_memories)
             if memories_prompt:
@@ -57,12 +48,10 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
                     )
 
             response = model.invoke(messages)
-            logger.info(json.dumps({"event": "llm_node.success", "model_name": model_name}))
             return {"messages": [response]}
         except RuntimeError as e:
             # Re-raise with better context for credential/API errors
             error_msg = str(e)
-            logger.error(json.dumps({"event": "llm_node.runtime_error", "model_name": model_name, "error": error_msg}))
             if "API_KEY" in error_msg or "not found" in error_msg:
                 raise RuntimeError(
                     f"Authentication error with {model_name}: {error_msg}\n"
@@ -78,7 +67,6 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
                     f"Error calling {model_name}: {error_msg}"
                 )
         except Exception as e:
-            logger.error(json.dumps({"event": "llm_node.exception", "model_name": model_name, "error_type": type(e).__name__, "error": str(e)}))
             raise RuntimeError(
                 f"Unexpected error with {model_name}: {type(e).__name__}: {e}"
             )
