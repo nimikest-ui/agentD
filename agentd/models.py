@@ -604,11 +604,13 @@ class OllamaModel(BaseChatModel):
         from langchain_openai import ChatOpenAI
         api_key = self.api_key or os.environ.get("OLLAMA_API_KEY", "placeholder")
         # Derive OpenAI-compat base URL from native Ollama URL
+        # https://ollama.com/api -> https://ollama.com/v1
+        # http://localhost:11434 -> http://localhost:11434/v1
         base = self.base_url.rstrip("/")
         if base.endswith("/api"):
-            openai_url = base + "/v1"  # https://ollama.com/api -> /api/v1
+            openai_url = base[:-4] + "/v1"
         else:
-            openai_url = base + "/v1"  # http://localhost:11434 -> /v1
+            openai_url = base + "/v1"
         llm = ChatOpenAI(model=self.model, base_url=openai_url, api_key=api_key)
         return llm.bind_tools(tools, tool_choice=tool_choice, **kwargs)
 
