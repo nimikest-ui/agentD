@@ -886,24 +886,24 @@ try:
     register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)",
                    description="128k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
 
-    # Xiaomi MiMo models (latest first)
-    # V2.5 series (April 2026) - moderate cost
-    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro",
-                   description="Latest professional model. Matches frontier benchmarks at lower cost.", cost_tier=3, default_model=XIOMIMIMO_DEFAULT_MODEL)
+    # Xiaomi MiMo models (sorted: cheapest to most expensive)
+    # Open-weight models - cheapest
+    register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)",
+                   description="Open-weight model. MIT license. Fast inference.", cost_tier=1)
+    register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)",
+                   description="Compact 7B parameter model. Open-source & lightweight.", cost_tier=1)
+    # V2 series (March 2026) - cheaper
     register_model("mimo-v2.5", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5",
                    description="General-purpose V2.5. Strong performance & cost-effective.", cost_tier=2)
-    # V2 series (March 2026) - cheaper
     register_model("mimo-v2-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Pro (Reasoning)",
                    description="Specialized for reasoning tasks & agent workflows. High quality outputs.", cost_tier=2)
     register_model("mimo-v2-omni", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Omni (Multimodal)",
                    description="Full multimodal support. Text & image understanding.", cost_tier=2)
     register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)",
                    description="Text-to-speech synthesis. Audio generation from text.", cost_tier=2)
-    # Open-weight models - cheapest
-    register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)",
-                   description="Open-weight model. MIT license. Fast inference.", cost_tier=1)
-    register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)",
-                   description="Compact 7B parameter model. Open-source & lightweight.", cost_tier=1)
+    # V2.5 series (April 2026) - moderate cost
+    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro",
+                   description="Latest professional model. Matches frontier benchmarks at lower cost.", cost_tier=3, default_model=XIOMIMIMO_DEFAULT_MODEL)
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()
