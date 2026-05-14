@@ -45,3 +45,41 @@ class TestGraphStructure:
         from agentd.graph import build_graph
         graph = build_graph(model_name="sonnet")
         assert hasattr(graph, "invoke")
+
+
+class TestAgentAPI:
+    def _agent(self):
+        from langgraph.checkpoint.memory import MemorySaver
+        from agentd.core import Agent
+        return Agent(model="sonnet", checkpointer=MemorySaver())
+
+    def test_repr(self):
+        assert "sonnet" in repr(self._agent())
+
+    def test_get_state_empty_thread(self):
+        state = self._agent().get_state("new-thread")
+        assert isinstance(state.values, dict)
+
+    def test_get_history_empty_thread(self):
+        history = list(self._agent().get_history("new-thread"))
+        assert history == []
+
+    def test_update_then_get_state(self):
+        a = self._agent()
+        a.update_state("t1", {"_thread_memories": ["user likes Python"]})
+        state = a.get_state("t1")
+        assert state.values.get("_thread_memories") == ["user likes Python"]
+
+    def test_thread_isolation(self):
+        a = self._agent()
+        a.update_state("t-alpha", {"_thread_memories": ["alpha fact"]})
+        a.update_state("t-beta", {"_thread_memories": ["beta fact"]})
+        assert a.get_state("t-alpha").values["_thread_memories"] == ["alpha fact"]
+        assert a.get_state("t-beta").values["_thread_memories"] == ["beta fact"]
+
+    def test_get_history_after_updates(self):
+        a = self._agent()
+        a.update_state("hist-thread", {"_thread_memories": ["v1"]})
+        a.update_state("hist-thread", {"_thread_memories": ["v2"]})
+        history = list(a.get_history("hist-thread"))
+        assert len(history) >= 1
