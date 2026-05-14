@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from langgraph.graph import StateGraph, MessagesState
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -14,7 +14,7 @@ class AgentState(MessagesState):
     _thread_memories: list[str]
 
 
-def _make_llm_node(model_name: str):
+def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
     """Return the single LLM node callable for the graph."""
     from agentd.models import AgentDModel
     from agentd.memory import get_memories_prompt
@@ -22,7 +22,7 @@ def _make_llm_node(model_name: str):
 
     model = AgentDModel(model=model_name)
 
-    def llm_node(state: AgentState) -> dict:
+    def llm_node(state: AgentState) -> dict[str, list]:
         thread_memories = state.get("_thread_memories", [])
         messages = list(state["messages"])
 

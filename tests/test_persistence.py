@@ -1,6 +1,7 @@
 """Tests for LangGraph persistence infrastructure."""
 
 import pytest
+from typing import Callable
 
 
 class TestPersistenceFactories:
@@ -31,8 +32,10 @@ class TestGraphStructure:
 
     def test_build_graph_returns_compiled_graph(self):
         from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.graph.state import CompiledStateGraph
         from agentd.graph import build_graph
         graph = build_graph(model_name="sonnet", checkpointer=MemorySaver())
+        assert isinstance(graph, CompiledStateGraph)
         assert hasattr(graph, "invoke")
         assert hasattr(graph, "get_state")
         assert hasattr(graph, "get_state_history")
