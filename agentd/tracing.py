@@ -7,8 +7,10 @@ tracing of LLM calls, tool usage, and application workflows.
 
 import os
 from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, Optional
 
+from dotenv import load_dotenv
 from langsmith import traceable, Client
 import anthropic
 from langsmith.wrappers import wrap_anthropic
@@ -26,6 +28,12 @@ def configure_langsmith(
         project_name: Project name for traces (defaults to "default")
         workspace_id: Workspace ID (optional, for multi-workspace accounts)
     """
+    # Load .env file, searching from current working directory
+    load_dotenv(
+        dotenv_path=str(Path.cwd() / ".env"),
+        verbose=False,
+    )
+
     if api_key:
         os.environ["LANGSMITH_API_KEY"] = api_key
 

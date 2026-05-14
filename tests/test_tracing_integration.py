@@ -36,6 +36,25 @@ class TestTracingConfiguration:
         assert os.environ.get("LANGSMITH_TRACING") == "true"
         assert os.environ.get("LANGSMITH_PROJECT") == "test"
 
+    def test_configure_langsmith_loads_dotenv(self, tmp_path, monkeypatch):
+        """Test that configure_langsmith loads .env automatically."""
+        import os
+
+        # Create a temp .env file with a known key
+        env_file = tmp_path / ".env"
+        env_file.write_text("LANGSMITH_API_KEY=test-dotenv-key\n")
+
+        # Remove key from env so it can only come from .env
+        monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+
+        # Change working directory to the tmp dir so load_dotenv finds .env
+        monkeypatch.chdir(tmp_path)
+
+        # configure_langsmith with no api_key arg — should load from .env
+        configure_langsmith(project_name="test-dotenv")
+
+        assert os.environ.get("LANGSMITH_API_KEY") == "test-dotenv-key"
+
 
 class TestAnthropicClient:
     """Test Anthropic client wrapper."""
