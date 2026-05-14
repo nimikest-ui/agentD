@@ -1224,12 +1224,12 @@ class KimiModel(BaseChatModel):
 class XiaomiModel(BaseChatModel):
     """Xiaomi MiMo API-backed chat model.
 
-    Uses the OpenAI-compatible API at https://api.xiaomi.com/v1 (or similar).
+    Uses the OpenAI-compatible API at https://api.xiaomimimo.com/v1.
     Requires XIOMIMIMO_API_KEY (set via env var or ~/.deepagents/.state/auth.json).
     """
 
     model: str = XIOMIMIMO_DEFAULT_MODEL
-    base_url: str = "https://api.xiaomi.com/v1"
+    base_url: str = "https://api.xiaomimimo.com/v1"
     api_key: str = ""
     call_timeout: int = 300
 
