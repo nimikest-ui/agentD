@@ -728,6 +728,15 @@ class OllamaModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Ollama API (async)."""
+        # Lazy load credential via thread to avoid blocking the event loop
+        if not self.api_key:
+            import asyncio
+            from agentd.auth_store import get_credential
+            api_key = await asyncio.to_thread(get_credential, "OLLAMA_API_KEY")
+            if api_key:
+                self.api_key = api_key
+                self.base_url = "https://ollama.com/api"
+
         messages_dicts = self._convert_messages_to_dict(messages)
 
         payload = {
@@ -1057,10 +1066,11 @@ class KimiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Moonshot API (async)."""
-        # Lazy load credential if not already set
+        # Lazy load credential via thread to avoid blocking the event loop
         if not self.api_key:
+            import asyncio
             from agentd.auth_store import get_credential
-            self.api_key = get_credential("MOONSHOT_API_KEY") or ""
+            self.api_key = await asyncio.to_thread(get_credential, "MOONSHOT_API_KEY") or ""
 
         if not self.api_key:
             raise RuntimeError(
@@ -1388,10 +1398,11 @@ class XiaomiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Xiaomi API (async)."""
-        # Lazy load credential if not already set
+        # Lazy load credential via thread to avoid blocking the event loop
         if not self.api_key:
+            import asyncio
             from agentd.auth_store import get_credential
-            self.api_key = get_credential("XIOMIMIMO_API_KEY") or ""
+            self.api_key = await asyncio.to_thread(get_credential, "XIOMIMIMO_API_KEY") or ""
 
         if not self.api_key:
             raise RuntimeError(
