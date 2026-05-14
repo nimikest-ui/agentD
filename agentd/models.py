@@ -791,6 +791,266 @@ class OllamaModel(BaseChatModel):
         return result
 
 
+class KimiModel(BaseChatModel):
+    """Kimi/Moonshot API-backed chat model.
+
+    Uses the OpenAI-compatible API at https://api.moonshot.cn/v1.
+    Requires MOONSHOT_API_KEY (set via env var or ~/.deepagents/.state/auth.json).
+    """
+
+    model: str = KIMI_DEFAULT_MODEL
+    base_url: str = "https://api.moonshot.cn/v1"
+    api_key: str = ""
+    call_timeout: int = 300
+
+    def __init__(self, **data):
+        from agentd.auth_store import get_credential
+        if not data.get("api_key"):
+            data["api_key"] = get_credential("MOONSHOT_API_KEY") or ""
+        super().__init__(**data)
+
+    @property
+    def _llm_type(self) -> str:
+        return "kimi"
+
+    def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
+        return {"ls_provider": KIMI_PROVIDER, "ls_model_name": self.model}
+
+    def _build_headers(self) -> dict[str, str]:
+        """Build HTTP headers for Moonshot API."""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Moonshot API (sync).
+
+        Uses asyncio.to_thread to avoid blocking errors in async contexts.
+        """
+        import asyncio
+        import threading
+
+        try:
+            loop = asyncio.get_running_loop()
+            return asyncio.run_coroutine_threadsafe(
+                self._agenerate(messages, stop, run_manager, **kwargs),
+                loop,
+            ).result()
+        except RuntimeError:
+            return self._generate_sync(messages, stop, run_manager, **kwargs)
+
+    def _generate_sync(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Internal sync implementation of _generate."""
+        if not self.api_key:
+            raise RuntimeError(
+                "MOONSHOT_API_KEY not found. Set it via environment variable "
+                "MOONSHOT_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Moonshot error: {data['error']}")
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not content:
+                raise RuntimeError("Empty response from Moonshot API")
+
+            ai_message = AIMessage(content=content)
+            return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(
+                f"Moonshot API HTTP error {e.response.status_code}: {e.response.text}"
+            )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Moonshot API at {self.base_url}. "
+                f"Check your API key and network connection. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Moonshot API error: {type(e).__name__}: {e}")
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Moonshot API (async)."""
+        if not self.api_key:
+            raise RuntimeError(
+                "MOONSHOT_API_KEY not found. Set it via environment variable "
+                "MOONSHOT_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient(timeout=self.call_timeout) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Moonshot error: {data['error']}")
+
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if not content:
+                    raise RuntimeError("Empty response from Moonshot API")
+
+                ai_message = AIMessage(content=content)
+                return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(
+                f"Moonshot API HTTP error {e.response.status_code}: {e.response.text}"
+            )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Moonshot API. "
+                f"Check your API key and network connection. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Moonshot API error: {type(e).__name__}: {e}")
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """Stream response tokens from Moonshot API."""
+        if not self.api_key:
+            raise RuntimeError(
+                "MOONSHOT_API_KEY not found. Set it via environment variable "
+                "MOONSHOT_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": True,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            with httpx.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.strip():
+                        try:
+                            if line.startswith("data: "):
+                                line = line[6:]
+                            if line.strip() == "[DONE]":
+                                break
+                            data = json.loads(line)
+
+                            if "error" in data:
+                                raise RuntimeError(f"Moonshot error: {data['error']}")
+
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                chunk = ChatGenerationChunk(
+                                    message=AIMessageChunk(content=content)
+                                )
+                                if run_manager:
+                                    run_manager.on_llm_new_token(content, chunk=chunk)
+                                yield chunk
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Moonshot API. "
+                f"Check your API key and network connection. Error: {e}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(f"Moonshot streaming error: {type(e).__name__}: {e}")
+
+    @staticmethod
+    def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
+        """Convert LangChain messages to OpenAI-compatible format."""
+        result = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                result.append({"role": "system", "content": str(msg.content)})
+            elif isinstance(msg, HumanMessage):
+                result.append({"role": "user", "content": str(msg.content)})
+            elif isinstance(msg, AIMessage):
+                result.append({"role": "assistant", "content": str(msg.content)})
+        return result
+
+
 def get_ollama_models() -> list[tuple[str, str]]:
     """Fetch available models from Ollama cloud or local instance.
 
