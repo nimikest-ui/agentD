@@ -95,6 +95,13 @@ class Agent:
         store: Optional[BaseStore] = None,
         **kwargs,
     ):
+        # Initialize logging on first Agent creation
+        try:
+            from agentd.logging_config import setup_logging
+            setup_logging()
+        except Exception:
+            pass  # Logging setup failure shouldn't break the agent
+
         self.model_name = model
         self.agent_model = self._create_model(model, provider, **kwargs)
         self._store = store or make_store()
