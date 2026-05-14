@@ -3,16 +3,30 @@
 import json
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
+
+
+# Global reference to current log file for exit handler
+_current_log_file = None
 
 
 def setup_logging(log_file: str | Path = None):
     """Set up JSON logging for agentD components.
 
     Args:
-        log_file: Path to write logs. If None, logs only to stdout.
+        log_file: Path to write logs. If None, creates timestamped file in sessions dir.
     """
-    log_file = log_file or Path.home() / ".agentd" / "logs" / "agentd.log"
+    global _current_log_file
+
+    if log_file is None:
+        # Create sessions directory with timestamped log file
+        sessions_dir = Path.home() / ".agentd" / "sessions"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = sessions_dir / f"session_{timestamp}.log"
+
+    _current_log_file = log_file
 
     # Ensure log directory exists
     if isinstance(log_file, str):
@@ -57,4 +71,15 @@ def setup_logging(log_file: str | Path = None):
         logger = logging.getLogger(logger_name)
         logger.setLevel(logging.DEBUG)
 
-    print(f"Logging configured. Logs written to: {log_file}", file=sys.stderr)
+    # Register exit handler to show log file path on quit
+    import atexit
+    def print_log_on_exit():
+        if _current_log_file and _current_log_file.exists():
+            # Get file size
+            size = _current_log_file.stat().st_size
+            print(f"\n📋 Session logs saved to: {_current_log_file} ({size} bytes)", file=sys.stderr)
+
+    atexit.register(print_log_on_exit)
+
+    # Also print at startup
+    print(f"📝 Logging to: {log_file}", file=sys.stderr)
