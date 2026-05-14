@@ -90,3 +90,59 @@ class TestAgentAPI:
         agent_instance.update_state("hist-thread", {"_thread_memories": ["v2"]})
         history = list(agent_instance.get_history("hist-thread"))
         assert len(history) >= 1
+
+
+class TestMemoryIntegration:
+    """Test async memory integration with Agent."""
+
+    @pytest.mark.asyncio
+    async def test_persist_and_load_thread_memories(self):
+        """Verify persist_memory_to_state and load_state_memories work end-to-end."""
+        from langgraph.checkpoint.memory import MemorySaver
+        from agentd.core import Agent
+        from agentd.memory import persist_memory_to_state, load_state_memories
+
+        agent = Agent(model="sonnet", checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "mem-thread"}}
+
+        await persist_memory_to_state(agent, config, ["fact A", "fact B"])
+        facts = await load_state_memories(agent, config)
+
+        assert "fact A" in facts
+        assert "fact B" in facts
+        agent.close()
+
+    @pytest.mark.asyncio
+    async def test_load_from_empty_thread_returns_empty_list(self):
+        """Verify load_state_memories returns empty list for new thread."""
+        from langgraph.checkpoint.memory import MemorySaver
+        from agentd.core import Agent
+        from agentd.memory import load_state_memories
+
+        agent = Agent(model="sonnet", checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "ghost-thread"}}
+        facts = await load_state_memories(agent, config)
+        assert facts == []
+        agent.close()
+
+    @pytest.mark.asyncio
+    async def test_memories_are_thread_scoped(self):
+        """Verify memories are isolated per thread."""
+        from langgraph.checkpoint.memory import MemorySaver
+        from agentd.core import Agent
+        from agentd.memory import persist_memory_to_state, load_state_memories
+
+        agent = Agent(model="sonnet", checkpointer=MemorySaver())
+        config_a = {"configurable": {"thread_id": "scope-a"}}
+        config_b = {"configurable": {"thread_id": "scope-b"}}
+
+        await persist_memory_to_state(agent, config_a, ["thread A fact"])
+        await persist_memory_to_state(agent, config_b, ["thread B fact"])
+
+        facts_a = await load_state_memories(agent, config_a)
+        facts_b = await load_state_memories(agent, config_b)
+
+        assert "thread A fact" in facts_a
+        assert "thread A fact" not in facts_b
+        assert "thread B fact" in facts_b
+        agent.close()
