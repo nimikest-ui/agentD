@@ -64,20 +64,27 @@ class Agent:
 
     @staticmethod
     def _create_model(model: str, provider: Optional[str] = None, **kwargs: Any):
-        """Create the appropriate model instance based on provider."""
+        """Create the appropriate model instance based on provider.
+
+        Handles both plain model names (e.g., "kimi-k2.6") and
+        prefixed names (e.g., "kimi:kimi-k2.6") by splitting on ':'.
+        """
+        # Strip provider prefix if present (e.g., "kimi:kimi-k2.6" -> "kimi-k2.6")
+        model_name = model.split(":")[-1] if ":" in model else model
+
         if provider is None:
             provider = _detect_provider(model)
 
         if provider == COPILOT_CLI_PROVIDER:
-            return CopilotModel(model=model, **kwargs)
+            return CopilotModel(model=model_name, **kwargs)
         elif provider == KIMI_PROVIDER:
-            return KimiModel(model=model, **kwargs)
+            return KimiModel(model=model_name, **kwargs)
         elif provider == XIOMIMIMO_PROVIDER:
-            return XiaomiModel(model=model, **kwargs)
+            return XiaomiModel(model=model_name, **kwargs)
         elif provider == OLLAMA_PROVIDER:
-            return OllamaModel(model=model, **kwargs)
+            return OllamaModel(model=model_name, **kwargs)
         else:
-            return AgentDModel(model=model, **kwargs)
+            return AgentDModel(model=model_name, **kwargs)
 
     def __init__(
         self,
