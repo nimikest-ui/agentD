@@ -854,46 +854,80 @@ try:
     from agentd.model_registry import register_model
 
     # Claude models via AgentD CLI
-    register_model("sonnet", AGENTD_CLI_PROVIDER, display="Claude Sonnet", default_model=AGENTD_CLI_DEFAULT_MODEL)
-    register_model("opus", AGENTD_CLI_PROVIDER, display="Claude Opus")
-    register_model("haiku", AGENTD_CLI_PROVIDER, display="Claude Haiku")
+    register_model("sonnet", AGENTD_CLI_PROVIDER, display="Claude Sonnet",
+                   description="Balanced speed & intelligence. Best for most tasks.", default_model=AGENTD_CLI_DEFAULT_MODEL)
+    register_model("opus", AGENTD_CLI_PROVIDER, display="Claude Opus",
+                   description="Most capable. Best for complex reasoning & analysis.")
+    register_model("haiku", AGENTD_CLI_PROVIDER, display="Claude Haiku",
+                   description="Fastest & most compact. Best for real-time interactions.")
 
     # Copilot CLI
-    register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI", default_model=COPILOT_CLI_DEFAULT_MODEL)
+    register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI",
+                   description="GitHub Copilot integration. Code-focused assistance.", default_model=COPILOT_CLI_DEFAULT_MODEL)
 
     # Kimi/Moonshot models (latest first)
-    register_model("kimi-k2.6", KIMI_PROVIDER, display="Kimi K2.6 (Latest)", default_model=KIMI_DEFAULT_MODEL)
-    register_model("kimi-k2.5", KIMI_PROVIDER, display="Kimi K2.5")
-    register_model("kimi-k2-0905-preview", KIMI_PROVIDER, display="Kimi K2 0905 Preview")
-    register_model("kimi-k2-turbo-preview", KIMI_PROVIDER, display="Kimi K2 Turbo")
-    register_model("kimi-k2-thinking", KIMI_PROVIDER, display="Kimi K2 Thinking")
-    register_model("kimi-k2-thinking-turbo", KIMI_PROVIDER, display="Kimi K2 Thinking Turbo")
+    register_model("kimi-k2.6", KIMI_PROVIDER, display="Kimi K2.6 (Latest)",
+                   description="Latest multimodal model. 256k context. Best reasoning & vision.", default_model=KIMI_DEFAULT_MODEL)
+    register_model("kimi-k2.5", KIMI_PROVIDER, display="Kimi K2.5",
+                   description="Multimodal model. 256k context. Strong across coding & vision.")
+    register_model("kimi-k2-0905-preview", KIMI_PROVIDER, display="Kimi K2 0905 Preview",
+                   description="Enhanced agentic coding. Improved front-end aesthetics & context understanding.")
+    register_model("kimi-k2-turbo-preview", KIMI_PROVIDER, display="Kimi K2 Turbo",
+                   description="High-speed K2. 60-100 tokens/sec output. 256k context.")
+    register_model("kimi-k2-thinking", KIMI_PROVIDER, display="Kimi K2 Thinking",
+                   description="Long-term reasoning model. Multi-step problem solving. 256k context.")
+    register_model("kimi-k2-thinking-turbo", KIMI_PROVIDER, display="Kimi K2 Thinking Turbo",
+                   description="Fast deep reasoning. 60-100 tokens/sec output.")
     # Legacy models (deprecated)
-    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k (Legacy)")
-    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)")
-    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)")
+    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k (Legacy)",
+                   description="8k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
+    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)",
+                   description="32k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
+    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)",
+                   description="128k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.")
 
     # Xiaomi MiMo models (latest first)
     # V2.5 series (April 2026)
-    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
-    register_model("mimo-v2.5", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5")
+    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro",
+                   description="Latest professional model. Matches frontier benchmarks at lower cost.", default_model=XIOMIMIMO_DEFAULT_MODEL)
+    register_model("mimo-v2.5", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5",
+                   description="General-purpose V2.5. Strong performance & cost-effective.")
     # V2 series (March 2026)
-    register_model("mimo-v2-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Pro (Reasoning)")
-    register_model("mimo-v2-omni", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Omni (Multimodal)")
-    register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)")
+    register_model("mimo-v2-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Pro (Reasoning)",
+                   description="Specialized for reasoning tasks & agent workflows. High quality outputs.")
+    register_model("mimo-v2-omni", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Omni (Multimodal)",
+                   description="Full multimodal support. Text & image understanding.")
+    register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)",
+                   description="Text-to-speech synthesis. Audio generation from text.")
     # Open-weight models
-    register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)")
-    register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)")
+    register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)",
+                   description="Open-weight model. MIT license. Fast inference.")
+    register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)",
+                   description="Compact 7B parameter model. Open-source & lightweight.")
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()
 
-    # Always register common Ollama models
+    # Always register common Ollama models with descriptions
+    ollama_descriptions = {
+        "llama2": "Meta's flagship open model. Balanced & reliable.",
+        "llama2:13b": "13B version of Llama2. Smaller footprint.",
+        "mistral": "Mistral 7B. Fast & efficient. Great for real-time.",
+        "neural-chat": "Intel's optimized chat model. Good for conversations.",
+        "starling-lm": "Chat-optimized model. High quality responses.",
+        "dolphin-mixtral": "Uncensored MoE model. Mixture of Experts.",
+        "phi": "Microsoft's 2.7B model. Small & capable.",
+        "neural-chat:7b": "7B variant. Optimized for chat tasks.",
+        "openhermes": "Open Hermes 2.5. Strong reasoning & coding.",
+        "zephyr": "Aligned chat model. Well-behaved & helpful.",
+    }
+
     for model_id in OLLAMA_COMMON_MODELS:
         register_model(
             model_id,
             OLLAMA_PROVIDER,
             display=f"Ollama: {model_id}",
+            description=ollama_descriptions.get(model_id, "Local open-source model."),
             default_model=model_id == OLLAMA_DEFAULT_MODEL
         )
         registered_ollama.add(model_id)
@@ -907,6 +941,7 @@ try:
                     model_id,
                     OLLAMA_PROVIDER,
                     display=display_name,
+                    description="Available from Ollama Cloud or local instance.",
                 )
     except Exception:
         # Ollama might not be available, that's OK - we already registered the common models

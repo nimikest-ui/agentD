@@ -9,6 +9,7 @@ def register_model(
     model_id: str,
     provider: str,
     display: Optional[str] = None,
+    description: Optional[str] = None,
     default_model: Optional[str] = None,
 ) -> None:
     """Register a model with the registry.
@@ -17,11 +18,13 @@ def register_model(
         model_id: The model identifier (e.g., 'llama2', 'sonnet')
         provider: The provider name (e.g., 'ollama', 'agentd-cli')
         display: Display name for UI menus
+        description: Brief description of model capabilities
         default_model: Whether this is the default model for the provider
     """
     _registry[model_id] = {
         "provider": provider,
         "display": display or model_id,
+        "description": description or "",
         "is_default": bool(default_model),
     }
 
@@ -49,7 +52,7 @@ def get_providers() -> set:
 def get_models() -> List[dict]:
     """Get all models as a list of dicts (TUI-compatible format).
 
-    Returns a list of model info dicts with model_id, provider, and display name.
+    Returns a list of model info dicts with model_id, provider, display name, and description.
     This is the primary API for TUI integration.
     """
     return [
@@ -57,6 +60,7 @@ def get_models() -> List[dict]:
             "model_id": model_id,
             "provider": info["provider"],
             "display": info["display"],
+            "description": info.get("description", ""),
             "is_default": info["is_default"],
         }
         for model_id, info in _registry.items()
