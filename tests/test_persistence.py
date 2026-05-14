@@ -146,3 +146,17 @@ class TestMemoryIntegration:
         assert "thread A fact" not in facts_b
         assert "thread B fact" in facts_b
         agent.close()
+
+
+class TestCLINonInteractive:
+    def test_run_non_interactive_uses_agent_invoke(self, monkeypatch):
+        from unittest.mock import MagicMock, patch
+        mock_agent = MagicMock()
+        mock_agent.invoke.return_value = {
+            "messages": [MagicMock(content="test response")]
+        }
+        with patch("agentd.core.Agent", return_value=mock_agent):
+            from agentd.cli import run_non_interactive
+            exit_code = run_non_interactive("do a task", thread_id="my-thread", model="sonnet")
+        mock_agent.invoke.assert_called_once_with("do a task", thread_id="my-thread")
+        assert exit_code == 0

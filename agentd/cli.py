@@ -40,6 +40,57 @@ def get_tui_engine_path():
         "AgentD TUI engine not found. Install with: pip install -e ."
     )
 
+def run_non_interactive(task: str, thread_id: str = "default", model: str = "sonnet") -> int:
+    """Run a task through Agent.invoke() with thread persistence.
+
+    Args:
+        task: The task text to run.
+        thread_id: Thread ID for checkpoint isolation.
+        model: Model name.
+
+    Returns:
+        Exit code (0 = success).
+    """
+    from agentd.core import Agent
+    try:
+        agent = Agent(model=model)
+        result = agent.invoke(task, thread_id=thread_id)
+        messages = result.get("messages", [])
+        if messages:
+            last = messages[-1]
+            print(getattr(last, "content", str(last)))
+        agent.close()
+        return 0
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+def run_non_interactive(task: str, thread_id: str = "default", model: str = "sonnet") -> int:
+    """Run a task through Agent.invoke() with thread persistence.
+
+    Args:
+        task: The task text to run.
+        thread_id: Thread ID for checkpoint isolation.
+        model: Model name.
+
+    Returns:
+        Exit code (0 = success).
+    """
+    from agentd.core import Agent
+    try:
+        agent = Agent(model=model)
+        result = agent.invoke(task, thread_id=thread_id)
+        messages = result.get("messages", [])
+        if messages:
+            last = messages[-1]
+            print(getattr(last, "content", str(last)))
+        agent.close()
+        return 0
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     """Main entry point for AgentD CLI."""
     parser = argparse.ArgumentParser(
@@ -63,6 +114,7 @@ def main():
         help="Resume specific thread/conversation"
     )
 
+
     parser.add_argument(
         "-r", "--resume",
         action="store_true",
@@ -84,7 +136,15 @@ def main():
     # Parse known args, pass rest to TUI engine
     args, unknown = parser.parse_known_args()
 
-    # Build agentD command
+    # Handle non-interactive mode
+    if args.non_interactive:
+        thread_id = args.thread_id or "default"
+        model = args.model or "sonnet"
+        sys.exit(run_non_interactive(
+            args.non_interactive,
+            thread_id=thread_id,
+            model=model,
+        ))
     try:
         tui_engine_path = get_tui_engine_path()
     except FileNotFoundError as e:
