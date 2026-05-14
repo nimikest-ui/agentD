@@ -28,7 +28,7 @@ setup(
     python_requires=">=3.10",
     install_requires=[
         "langchain>=0.1.0",
-        "langgraph>=0.0.1",
+        "langgraph>=1.1.0",
         "langsmith>=0.0.1",
         "python-dotenv>=1.0.0",
         "textual>=0.20.0",
