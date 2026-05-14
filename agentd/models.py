@@ -947,9 +947,8 @@ class KimiModel(BaseChatModel):
     call_timeout: int = 300
 
     def __init__(self, **data):
-        from agentd.auth_store import get_credential
-        if not data.get("api_key"):
-            data["api_key"] = get_credential("MOONSHOT_API_KEY") or ""
+        # Defer credential loading to avoid blocking during __init__
+        # Credentials will be loaded lazily in _generate_sync when needed
         super().__init__(**data)
 
     @property
@@ -995,6 +994,11 @@ class KimiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Internal sync implementation of _generate."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("MOONSHOT_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
@@ -1080,6 +1084,11 @@ class KimiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Moonshot API (async)."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("MOONSHOT_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
@@ -1165,6 +1174,11 @@ class KimiModel(BaseChatModel):
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
         """Stream response tokens from Moonshot API."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("MOONSHOT_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
@@ -1276,9 +1290,8 @@ class XiaomiModel(BaseChatModel):
     call_timeout: int = 300
 
     def __init__(self, **data):
-        from agentd.auth_store import get_credential
-        if not data.get("api_key"):
-            data["api_key"] = get_credential("XIOMIMIMO_API_KEY") or ""
+        # Defer credential loading to avoid blocking during __init__
+        # Credentials will be loaded lazily in _generate_sync when needed
         super().__init__(**data)
 
     @property
@@ -1323,6 +1336,11 @@ class XiaomiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Internal sync implementation of _generate."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("XIOMIMIMO_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
@@ -1407,6 +1425,11 @@ class XiaomiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Xiaomi API (async)."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("XIOMIMIMO_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
@@ -1491,6 +1514,11 @@ class XiaomiModel(BaseChatModel):
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
         """Stream response tokens from Xiaomi API."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("XIOMIMIMO_API_KEY") or ""
+
         if not self.api_key:
             raise RuntimeError(
                 f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
