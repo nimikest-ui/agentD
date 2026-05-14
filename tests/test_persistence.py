@@ -1,7 +1,6 @@
 """Tests for LangGraph persistence infrastructure."""
 
 import pytest
-from typing import Callable
 
 
 class TestPersistenceFactories:
@@ -47,39 +46,47 @@ class TestGraphStructure:
         assert hasattr(graph, "invoke")
 
 
+@pytest.fixture
+def agent_instance():
+    """Create an Agent with MemorySaver for testing."""
+    from langgraph.checkpoint.memory import MemorySaver
+    from agentd.core import Agent
+    agent = Agent(model="sonnet", checkpointer=MemorySaver())
+    yield agent
+    agent.close()
+
+
 class TestAgentAPI:
-    def _agent(self):
-        from langgraph.checkpoint.memory import MemorySaver
-        from agentd.core import Agent
-        return Agent(model="sonnet", checkpointer=MemorySaver())
+    def test_repr(self, agent_instance):
+        """Verify Agent __repr__ includes model name."""
+        assert "sonnet" in repr(agent_instance)
 
-    def test_repr(self):
-        assert "sonnet" in repr(self._agent())
-
-    def test_get_state_empty_thread(self):
-        state = self._agent().get_state("new-thread")
+    def test_get_state_empty_thread(self, agent_instance):
+        """Verify get_state returns empty dict for new thread."""
+        state = agent_instance.get_state("new-thread")
         assert isinstance(state.values, dict)
 
-    def test_get_history_empty_thread(self):
-        history = list(self._agent().get_history("new-thread"))
+    def test_get_history_empty_thread(self, agent_instance):
+        """Verify get_history returns empty list for new thread."""
+        history = list(agent_instance.get_history("new-thread"))
         assert history == []
 
-    def test_update_then_get_state(self):
-        a = self._agent()
-        a.update_state("t1", {"_thread_memories": ["user likes Python"]})
-        state = a.get_state("t1")
+    def test_update_then_get_state(self, agent_instance):
+        """Verify update_state persists values and get_state retrieves them."""
+        agent_instance.update_state("t1", {"_thread_memories": ["user likes Python"]})
+        state = agent_instance.get_state("t1")
         assert state.values.get("_thread_memories") == ["user likes Python"]
 
-    def test_thread_isolation(self):
-        a = self._agent()
-        a.update_state("t-alpha", {"_thread_memories": ["alpha fact"]})
-        a.update_state("t-beta", {"_thread_memories": ["beta fact"]})
-        assert a.get_state("t-alpha").values["_thread_memories"] == ["alpha fact"]
-        assert a.get_state("t-beta").values["_thread_memories"] == ["beta fact"]
+    def test_thread_isolation(self, agent_instance):
+        """Verify different threads maintain isolated state."""
+        agent_instance.update_state("t-alpha", {"_thread_memories": ["alpha fact"]})
+        agent_instance.update_state("t-beta", {"_thread_memories": ["beta fact"]})
+        assert agent_instance.get_state("t-alpha").values["_thread_memories"] == ["alpha fact"]
+        assert agent_instance.get_state("t-beta").values["_thread_memories"] == ["beta fact"]
 
-    def test_get_history_after_updates(self):
-        a = self._agent()
-        a.update_state("hist-thread", {"_thread_memories": ["v1"]})
-        a.update_state("hist-thread", {"_thread_memories": ["v2"]})
-        history = list(a.get_history("hist-thread"))
+    def test_get_history_after_updates(self, agent_instance):
+        """Verify get_history returns checkpoints after state updates."""
+        agent_instance.update_state("hist-thread", {"_thread_memories": ["v1"]})
+        agent_instance.update_state("hist-thread", {"_thread_memories": ["v2"]})
+        history = list(agent_instance.get_history("hist-thread"))
         assert len(history) >= 1

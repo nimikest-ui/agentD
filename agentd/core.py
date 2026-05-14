@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.store.base import BaseStore
 
 from agentd.models import AgentDModel, AGENTD_CLI_PROVIDER
 from agentd.graph import build_graph
@@ -25,8 +27,8 @@ class Agent:
         self,
         model: str = "sonnet",
         db_path: str | Path | None = None,
-        checkpointer=None,
-        store=None,
+        checkpointer: Optional[BaseCheckpointSaver] = None,
+        store: Optional[BaseStore] = None,
         **kwargs,
     ):
         self.model_name = model
@@ -53,7 +55,7 @@ class Agent:
         if self._owns_cm:
             try:
                 self._cm.__exit__(None, None, None)
-            except Exception:
+            except (OSError, RuntimeError, AttributeError):
                 pass
             self._owns_cm = False
 
@@ -80,7 +82,7 @@ class Agent:
             stream_mode="updates",
         )
 
-    def get_state(self, thread_id: str):
+    def get_state(self, thread_id: str) -> Any:
         """Return the current StateSnapshot for a thread."""
         return self.graph.get_state(_config(thread_id))
 
@@ -92,10 +94,10 @@ class Agent:
         """Write values directly into a thread's checkpoint state."""
         return self.graph.update_state(_config(thread_id), values)
 
-    async def aupdate_state(self, config: RunnableConfig, values: dict) -> RunnableConfig:
+    async def aupdate_state(self, config: RunnableConfig, values: dict[str, Any]) -> RunnableConfig:
         """Async update_state for memory.py stubs."""
         return await self.graph.aupdate_state(config, values)
 
-    async def aget_state(self, config: RunnableConfig):
+    async def aget_state(self, config: RunnableConfig) -> Any:
         """Async get_state for memory.py stubs."""
         return await self.graph.aget_state(config)
