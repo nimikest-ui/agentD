@@ -37,15 +37,44 @@ def save_credentials(creds: Dict[str, str]) -> None:
 
 
 def get_credential(key: str) -> Optional[str]:
-    """Get a single credential (checks env var first, then auth store)."""
+    """Get a single credential (checks env var first, then auth store).
+
+    Supports both flat format (for legacy) and nested format from deepagents TUI.
+    Maps credential keys to TUI provider names:
+    - MOONSHOT_API_KEY → credentials.kimi
+    - OLLAMA_API_KEY → credentials.ollama
+    """
     # Environment variable takes priority
     env_value = os.environ.get(key)
     if env_value:
         return env_value
 
-    # Fall back to auth store
+    # Fall back to auth store (handles both nested TUI format and flat legacy format)
     creds = load_credentials()
-    return creds.get(key)
+
+    # Try flat format first (legacy)
+    if key in creds:
+        val = creds[key]
+        # Handle nested credential object from TUI {type: api_key, key: ...}
+        if isinstance(val, dict) and "key" in val:
+            return val["key"]
+        return val
+
+    # Try nested format from deepagents TUI
+    if "credentials" in creds and isinstance(creds["credentials"], dict):
+        # Map credential env var names to TUI provider names
+        provider_map = {
+            "MOONSHOT_API_KEY": "kimi",
+            "OLLAMA_API_KEY": "ollama",
+        }
+        provider_name = provider_map.get(key)
+        if provider_name and provider_name in creds["credentials"]:
+            cred_obj = creds["credentials"][provider_name]
+            if isinstance(cred_obj, dict) and "key" in cred_obj:
+                return cred_obj["key"]
+            return cred_obj
+
+    return None
 
 
 def set_credential(key: str, value: str) -> None:
