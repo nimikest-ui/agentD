@@ -30,6 +30,7 @@ setup(
         "langchain>=0.1.0",
         "langgraph>=0.0.1",
         "langsmith>=0.0.1",
+        "python-dotenv>=1.0.0",
         "textual>=0.20.0",
         "pydantic>=2.0",
         "anthropic>=0.7.0",
