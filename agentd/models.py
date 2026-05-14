@@ -644,21 +644,56 @@ class OllamaModel(BaseChatModel):
             return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Ollama API HTTP error {e.response.status_code}: {e.response.text}"
-            )
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Ollama API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 404:
+                raise RuntimeError(
+                    f"Ollama model not found (HTTP {status}). "
+                    f"Make sure the model '{self.model}' is available. "
+                    f"Check your Ollama instance or cloud settings."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Ollama API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Ollama API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
-            raise RuntimeError(
-                f"Cannot connect to Ollama at {self.base_url}. "
-                f"Make sure the service is running or check your API key. Error: {e}"
-            )
+            if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+                raise RuntimeError(
+                    f"Cannot connect to local Ollama at {self.base_url}. "
+                    f"Make sure Ollama is running. Start it with: ollama serve"
+                )
+            else:
+                raise RuntimeError(
+                    f"Cannot connect to Ollama at {self.base_url}. "
+                    f"Check your network connection and API key. "
+                    f"Error: {str(e)[:100]}"
+                )
         except httpx.TimeoutException as e:
             raise RuntimeError(
                 f"Ollama request timed out after {self.call_timeout}s. "
-                f"The model might be processing a large request. Error: {e}"
+                f"The model might be processing a large request or the service is slow. "
+                f"Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Ollama API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
             )
         except Exception as e:
-            raise RuntimeError(f"Ollama API error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Ollama API error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     async def _agenerate(
         self,
@@ -701,21 +736,56 @@ class OllamaModel(BaseChatModel):
                 return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Ollama API HTTP error {e.response.status_code}: {e.response.text}"
-            )
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Ollama API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 404:
+                raise RuntimeError(
+                    f"Ollama model not found (HTTP {status}). "
+                    f"Make sure the model '{self.model}' is available. "
+                    f"Check your Ollama instance or cloud settings."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Ollama API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Ollama API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
-            raise RuntimeError(
-                f"Cannot connect to Ollama at {self.base_url}. "
-                f"Make sure the service is running or check your API key. Error: {e}"
-            )
+            if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+                raise RuntimeError(
+                    f"Cannot connect to local Ollama at {self.base_url}. "
+                    f"Make sure Ollama is running. Start it with: ollama serve"
+                )
+            else:
+                raise RuntimeError(
+                    f"Cannot connect to Ollama at {self.base_url}. "
+                    f"Check your network connection and API key. "
+                    f"Error: {str(e)[:100]}"
+                )
         except httpx.TimeoutException as e:
             raise RuntimeError(
                 f"Ollama request timed out after {self.call_timeout}s. "
-                f"The model might be processing a large request. Error: {e}"
+                f"The model might be processing a large request or the service is slow. "
+                f"Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Ollama API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
             )
         except Exception as e:
-            raise RuntimeError(f"Ollama API error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Ollama API error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     def _stream(
         self,
@@ -765,17 +835,49 @@ class OllamaModel(BaseChatModel):
                         except json.JSONDecodeError:
                             continue
 
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Ollama API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 404:
+                raise RuntimeError(
+                    f"Ollama model not found (HTTP {status}). "
+                    f"Make sure the model '{self.model}' is available."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Ollama API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Ollama API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
-            raise RuntimeError(
-                f"Cannot connect to Ollama at {self.base_url}. "
-                f"Make sure the service is running or check your API key. Error: {e}"
-            )
+            if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+                raise RuntimeError(
+                    f"Cannot connect to local Ollama at {self.base_url}. "
+                    f"Make sure Ollama is running. Start it with: ollama serve"
+                )
+            else:
+                raise RuntimeError(
+                    f"Cannot connect to Ollama at {self.base_url}. "
+                    f"Check your network connection. Error: {str(e)[:100]}"
+                )
         except httpx.TimeoutException as e:
             raise RuntimeError(
-                f"Ollama request timed out after {self.call_timeout}s. Error: {e}"
+                f"Ollama request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
             )
         except Exception as e:
-            raise RuntimeError(f"Ollama streaming error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Ollama streaming error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
@@ -892,20 +994,43 @@ class KimiModel(BaseChatModel):
             return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Moonshot API HTTP error {e.response.status_code}: {e.response.text}"
-            )
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Moonshot API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Moonshot API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Moonshot API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
             raise RuntimeError(
                 f"Cannot connect to Moonshot API at {self.base_url}. "
-                f"Check your API key and network connection. Error: {e}"
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
             )
         except httpx.TimeoutException as e:
             raise RuntimeError(
-                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+                f"Moonshot API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Moonshot API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
             )
         except Exception as e:
-            raise RuntimeError(f"Moonshot API error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Moonshot API error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     async def _agenerate(
         self,
@@ -953,20 +1078,43 @@ class KimiModel(BaseChatModel):
                 return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
         except httpx.HTTPStatusError as e:
-            raise RuntimeError(
-                f"Moonshot API HTTP error {e.response.status_code}: {e.response.text}"
-            )
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Moonshot API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Moonshot API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Moonshot API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
             raise RuntimeError(
                 f"Cannot connect to Moonshot API. "
-                f"Check your API key and network connection. Error: {e}"
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
             )
         except httpx.TimeoutException as e:
             raise RuntimeError(
-                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+                f"Moonshot API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Moonshot API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
             )
         except Exception as e:
-            raise RuntimeError(f"Moonshot API error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Moonshot API error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     def _stream(
         self,
@@ -1025,17 +1173,39 @@ class KimiModel(BaseChatModel):
                         except json.JSONDecodeError:
                             continue
 
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Moonshot API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Moonshot API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Moonshot API error (HTTP {status}): {text}"
+                )
         except httpx.ConnectError as e:
             raise RuntimeError(
                 f"Cannot connect to Moonshot API. "
-                f"Check your API key and network connection. Error: {e}"
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
             )
         except httpx.TimeoutException as e:
             raise RuntimeError(
-                f"Moonshot request timed out after {self.call_timeout}s. Error: {e}"
+                f"Moonshot API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
             )
         except Exception as e:
-            raise RuntimeError(f"Moonshot streaming error: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"Moonshot streaming error: {type(e).__name__}: {str(e)[:200]}"
+            )
 
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:

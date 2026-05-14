@@ -34,6 +34,7 @@ setup(
         "textual>=0.20.0",
         "pydantic>=2.0",
         "anthropic>=0.7.0",
+        "httpx>=0.24.0",
     ],
     entry_points={
         "console_scripts": [

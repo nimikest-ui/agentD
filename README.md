@@ -28,11 +28,13 @@ pip install -e .
 **Simple Command (with auto-approval):**
 ```bash
 D "your task"
+D -M ollama llama2 "your task"  # With local Ollama model
 ```
 
 **Full TUI:**
 ```bash
 D
+D -M llama2  # With specific model
 ```
 
 **Resume a conversation:**
@@ -45,7 +47,29 @@ D --thread-id <thread-id>
 D -n "run this task"
 ```
 
+**With Ollama models:**
+```bash
+# Make sure Ollama is running: ollama serve
+D -M llama2 "solve this"
+D -M mistral -n "write code"
+```
+
 ---
+
+## Ollama Integration
+
+Run agentD with local LLMs via Ollama. No API keys required.
+
+```bash
+# Start Ollama server
+ollama serve
+
+# In another terminal, use agentD with Ollama models
+D -M llama2 "solve this problem"
+D -M mistral "write a script"
+```
+
+For detailed setup, see [OLLAMA_SETUP.md](OLLAMA_SETUP.md).
 
 ## Features
 

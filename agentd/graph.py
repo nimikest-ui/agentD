@@ -15,28 +15,61 @@ class AgentState(MessagesState):
 
 
 def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
-    """Return the single LLM node callable for the graph."""
-    from agentd.models import AgentDModel
+    """Return the single LLM node callable for the graph.
+
+    Uses the proper model factory to instantiate the correct model class
+    based on the model name (Kimi, Ollama, Copilot, Claude, etc).
+    """
+    from agentd.core import Agent
     from agentd.memory import get_memories_prompt
     from langchain_core.messages import SystemMessage
 
-    model = AgentDModel(model=model_name)
+    # Use the Agent factory to create the correct model type
+    try:
+        model = Agent._create_model(model_name)
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to initialize model '{model_name}': {type(e).__name__}: {e}. "
+            f"Check that the model name is valid and required credentials are set."
+        )
 
     def llm_node(state: AgentState) -> dict[str, list]:
-        thread_memories = state.get("_thread_memories", [])
-        messages = list(state["messages"])
+        try:
+            thread_memories = state.get("_thread_memories", [])
+            messages = list(state["messages"])
 
-        memories_prompt = get_memories_prompt(thread_memories=thread_memories)
-        if memories_prompt:
-            if not messages or not isinstance(messages[0], SystemMessage):
-                messages = [SystemMessage(content=memories_prompt)] + messages
-            else:
-                messages[0] = SystemMessage(
-                    content=f"{memories_prompt}\n\n{messages[0].content}"
+            memories_prompt = get_memories_prompt(thread_memories=thread_memories)
+            if memories_prompt:
+                if not messages or not isinstance(messages[0], SystemMessage):
+                    messages = [SystemMessage(content=memories_prompt)] + messages
+                else:
+                    messages[0] = SystemMessage(
+                        content=f"{memories_prompt}\n\n{messages[0].content}"
+                    )
+
+            response = model.invoke(messages)
+            return {"messages": [response]}
+        except RuntimeError as e:
+            # Re-raise with better context for credential/API errors
+            error_msg = str(e)
+            if "API_KEY" in error_msg or "not found" in error_msg:
+                raise RuntimeError(
+                    f"Authentication error with {model_name}: {error_msg}\n"
+                    f"Run '/auth' in TUI to set up credentials."
                 )
-
-        response = model.invoke(messages)
-        return {"messages": [response]}
+            elif "Cannot connect" in error_msg or "timed out" in error_msg:
+                raise RuntimeError(
+                    f"Connection error with {model_name}: {error_msg}\n"
+                    f"Check your network connection and that the service is available."
+                )
+            else:
+                raise RuntimeError(
+                    f"Error calling {model_name}: {error_msg}"
+                )
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error with {model_name}: {type(e).__name__}: {e}"
+            )
 
     return llm_node
 
