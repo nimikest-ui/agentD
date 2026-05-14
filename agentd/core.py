@@ -14,15 +14,17 @@ from agentd.models import (
     CopilotModel,
     KimiModel,
     OllamaModel,
+    XiaomiModel,
     AGENTD_CLI_PROVIDER,
     COPILOT_CLI_PROVIDER,
     KIMI_PROVIDER,
     OLLAMA_PROVIDER,
+    XIOMIMIMO_PROVIDER,
 )
 from agentd.graph import build_graph
 from agentd.persistence import make_store
 
-__all__ = ["Agent", "AgentDModel", "KimiModel", "AGENTD_CLI_PROVIDER", "KIMI_PROVIDER"]
+__all__ = ["Agent", "AgentDModel", "KimiModel", "XiaomiModel", "AGENTD_CLI_PROVIDER", "KIMI_PROVIDER", "XIOMIMIMO_PROVIDER"]
 
 
 def _config(thread_id: str) -> RunnableConfig:
@@ -36,8 +38,11 @@ def _detect_provider(model: str) -> str:
     # Kimi/Moonshot models
     if any(x in model_lower for x in ["kimi", "moonshot"]):
         return KIMI_PROVIDER
+    # Xiaomi MiMo models
+    if any(x in model_lower for x in ["mimo", "xiaomi"]):
+        return XIOMIMIMO_PROVIDER
     # Ollama: colon-style tags (llama2:13b) and not a known cloud model
-    if ":" in model and not any(x in model_lower for x in ["sonnet", "claude", "copilot", "mimo"]):
+    if ":" in model and not any(x in model_lower for x in ["sonnet", "claude", "copilot"]):
         return OLLAMA_PROVIDER
     # Check environment variable
     env_provider = os.environ.get("AGENTD_PROVIDER", AGENTD_CLI_PROVIDER)
@@ -57,6 +62,8 @@ class Agent:
             return CopilotModel(model=model, **kwargs)
         elif provider == KIMI_PROVIDER:
             return KimiModel(model=model, **kwargs)
+        elif provider == XIOMIMIMO_PROVIDER:
+            return XiaomiModel(model=model, **kwargs)
         elif provider == OLLAMA_PROVIDER:
             return OllamaModel(model=model, **kwargs)
         else:

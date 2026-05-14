@@ -66,6 +66,7 @@ def get_credential(key: str) -> Optional[str]:
         provider_map = {
             "MOONSHOT_API_KEY": "kimi",
             "OLLAMA_API_KEY": "ollama",
+            "XIOMIMIMO_API_KEY": "xiomimimo",
         }
         provider_name = provider_map.get(key)
         if provider_name and provider_name in creds["credentials"]:

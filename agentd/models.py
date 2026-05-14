@@ -1221,6 +1221,330 @@ class KimiModel(BaseChatModel):
         return result
 
 
+class XiaomiModel(BaseChatModel):
+    """Xiaomi MiMo API-backed chat model.
+
+    Uses the OpenAI-compatible API at https://api.xiaomi.com/v1 (or similar).
+    Requires XIOMIMIMO_API_KEY (set via env var or ~/.deepagents/.state/auth.json).
+    """
+
+    model: str = XIOMIMIMO_DEFAULT_MODEL
+    base_url: str = "https://api.xiaomi.com/v1"
+    api_key: str = ""
+    call_timeout: int = 300
+
+    def __init__(self, **data):
+        from agentd.auth_store import get_credential
+        if not data.get("api_key"):
+            data["api_key"] = get_credential("XIOMIMIMO_API_KEY") or ""
+        super().__init__(**data)
+
+    @property
+    def _llm_type(self) -> str:
+        return "xiaomi"
+
+    def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
+        return {"ls_provider": XIOMIMIMO_PROVIDER, "ls_model_name": self.model}
+
+    def _build_headers(self) -> dict[str, str]:
+        """Build HTTP headers for Xiaomi API."""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Xiaomi API (sync)."""
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+            return asyncio.run_coroutine_threadsafe(
+                self._agenerate(messages, stop, run_manager, **kwargs),
+                loop,
+            ).result()
+        except RuntimeError:
+            return self._generate_sync(messages, stop, run_manager, **kwargs)
+
+    def _generate_sync(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Internal sync implementation of _generate."""
+        if not self.api_key:
+            raise RuntimeError(
+                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
+                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Xiaomi error: {data['error']}")
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not content:
+                raise RuntimeError("Empty response from Xiaomi API")
+
+            ai_message = AIMessage(content=content)
+            return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Xiaomi API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Xiaomi API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Xiaomi API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Xiaomi API at {self.base_url}. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Xiaomi API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Xiaomi API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Xiaomi API error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Xiaomi API (async)."""
+        if not self.api_key:
+            raise RuntimeError(
+                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
+                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient(timeout=self.call_timeout) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Xiaomi error: {data['error']}")
+
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if not content:
+                    raise RuntimeError("Empty response from Xiaomi API")
+
+                ai_message = AIMessage(content=content)
+                return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Xiaomi API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Xiaomi API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Xiaomi API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Xiaomi API. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Xiaomi API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Xiaomi API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Xiaomi API error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """Stream response tokens from Xiaomi API."""
+        if not self.api_key:
+            raise RuntimeError(
+                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
+                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": True,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            with httpx.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.strip():
+                        try:
+                            if line.startswith("data: "):
+                                line = line[6:]
+                            if line.strip() == "[DONE]":
+                                break
+                            data = json.loads(line)
+
+                            if "error" in data:
+                                raise RuntimeError(f"Xiaomi error: {data['error']}")
+
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                chunk = ChatGenerationChunk(
+                                    message=AIMessageChunk(content=content)
+                                )
+                                if run_manager:
+                                    run_manager.on_llm_new_token(content, chunk=chunk)
+                                yield chunk
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Xiaomi API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Xiaomi API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Xiaomi API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Xiaomi API. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Xiaomi API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Xiaomi streaming error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    @staticmethod
+    def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
+        """Convert LangChain messages to OpenAI-compatible format."""
+        result = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                result.append({"role": "system", "content": str(msg.content)})
+            elif isinstance(msg, HumanMessage):
+                result.append({"role": "user", "content": str(msg.content)})
+            elif isinstance(msg, AIMessage):
+                result.append({"role": "assistant", "content": str(msg.content)})
+        return result
+
+
 def get_ollama_models() -> list[tuple[str, str]]:
     """Fetch available models from Ollama cloud or local instance.
 
