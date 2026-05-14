@@ -42,12 +42,29 @@ COPILOT_CLI_PROVIDER = "copilot-cli"
 COPILOT_CLI_DEFAULT_MODEL = "copilot"
 
 KIMI_PROVIDER = "kimi"
-KIMI_DEFAULT_MODEL = "moonshot-v1-8k"
-KIMI_MODELS = ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+KIMI_DEFAULT_MODEL = "kimi-k2.6"
+KIMI_MODELS = [
+    # Latest multimodal models
+    "kimi-k2.6",
+    "kimi-k2.5",
+    # K2 preview models
+    "kimi-k2-0905-preview",
+    "kimi-k2-turbo-preview",
+    "kimi-k2-thinking",
+    "kimi-k2-thinking-turbo",
+    # Legacy Moonshot V1 (deprecated)
+    "moonshot-v1-8k",
+    "moonshot-v1-32k",
+    "moonshot-v1-128k",
+]
 
 XIOMIMIMO_PROVIDER = "xiomimimo"
-XIOMIMIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
-XIOMIMIMO_MODELS = ["mimo-v2.5-pro", "mimo-7b-rl", "mimo-7b-sft"]
+XIOMIMIMO_DEFAULT_MODEL = "mimo-v3.5-pro"
+XIOMIMIMO_MODELS = [
+    "mimo-v3.5-pro",
+    "mimo-v3.5-turbo",
+    "mimo-v3.5-vision",
+]
 
 OLLAMA_PROVIDER = "ollama"
 OLLAMA_DEFAULT_MODEL = "llama2"
@@ -836,12 +853,23 @@ try:
 
     # Copilot CLI
     register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI", default_model=COPILOT_CLI_DEFAULT_MODEL)
-    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Kimi 8k", default_model=KIMI_DEFAULT_MODEL)
-    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Kimi 32k")
-    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Kimi 128k")
-    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v2.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
-    register_model("mimo-7b-rl", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B RL")
-    register_model("mimo-7b-sft", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B SFT")
+
+    # Kimi/Moonshot models (latest first)
+    register_model("kimi-k2.6", KIMI_PROVIDER, display="Kimi K2.6 (Latest)", default_model=KIMI_DEFAULT_MODEL)
+    register_model("kimi-k2.5", KIMI_PROVIDER, display="Kimi K2.5")
+    register_model("kimi-k2-0905-preview", KIMI_PROVIDER, display="Kimi K2 0905 Preview")
+    register_model("kimi-k2-turbo-preview", KIMI_PROVIDER, display="Kimi K2 Turbo")
+    register_model("kimi-k2-thinking", KIMI_PROVIDER, display="Kimi K2 Thinking")
+    register_model("kimi-k2-thinking-turbo", KIMI_PROVIDER, display="Kimi K2 Thinking Turbo")
+    # Legacy models (deprecated)
+    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k (Legacy)")
+    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)")
+    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)")
+
+    # Xiaomi MiMo models (v3.5)
+    register_model("mimo-v3.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
+    register_model("mimo-v3.5-turbo", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Turbo")
+    register_model("mimo-v3.5-vision", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Vision")
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()
