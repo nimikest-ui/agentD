@@ -17,6 +17,7 @@ import threading
 import time
 from typing import Any, Iterator, Optional
 
+import httpx
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
@@ -39,6 +40,30 @@ AGENTD_CLI_DEFAULT_MODEL = "sonnet"
 
 COPILOT_CLI_PROVIDER = "copilot-cli"
 COPILOT_CLI_DEFAULT_MODEL = "copilot"
+
+KIMI_PROVIDER = "kimi"
+KIMI_DEFAULT_MODEL = "moonshot-v1-8k"
+KIMI_MODELS = ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+
+XIOMIMIMO_PROVIDER = "xiomimimo"
+XIOMIMIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
+XIOMIMIMO_MODELS = ["mimo-v2.5-pro", "mimo-7b-rl", "mimo-7b-sft"]
+
+OLLAMA_PROVIDER = "ollama"
+OLLAMA_DEFAULT_MODEL = "llama2"
+OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434"
+OLLAMA_COMMON_MODELS = [
+    "llama2",
+    "llama2:13b",
+    "mistral",
+    "neural-chat",
+    "starling-lm",
+    "dolphin-mixtral",
+    "phi",
+    "neural-chat:7b",
+    "openhermes",
+    "zephyr",
+]
 
 
 class AgentDModel(BaseChatModel):
@@ -483,12 +508,232 @@ class CopilotModel(AgentDModel):
         return "".join(text_chunks), session_id
 
 
+class OllamaModel(BaseChatModel):
+    """Ollama-backed chat model for use with local LLMs via Ollama."""
+
+    model: str = OLLAMA_DEFAULT_MODEL
+    base_url: str = OLLAMA_DEFAULT_BASE_URL
+    api_key: str = ""
+    call_timeout: int = 300
+
+    def __init__(self, **data):
+        if "base_url" not in data or not data["base_url"]:
+            data["base_url"] = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
+        if "api_key" not in data and "OLLAMA_API_KEY" in os.environ:
+            data["api_key"] = os.environ["OLLAMA_API_KEY"]
+        super().__init__(**data)
+
+    @property
+    def _llm_type(self) -> str:
+        return "ollama"
+
+    def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
+        return {"ls_provider": OLLAMA_PROVIDER, "ls_model_name": self.model}
+
+    def _build_headers(self) -> dict[str, str]:
+        """Build HTTP headers for Ollama API."""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Ollama API (sync)."""
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/api/chat"
+        headers = self._build_headers()
+
+        try:
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            )
+            response.raise_for_status()
+        except Exception as e:
+            raise RuntimeError(f"Ollama API error: {e}")
+
+        data = response.json()
+        content = data.get("message", {}).get("content", "")
+
+        ai_message = AIMessage(content=content)
+        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Ollama API (async)."""
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/api/chat"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=self.call_timeout,
+                )
+                response.raise_for_status()
+        except Exception as e:
+            raise RuntimeError(f"Ollama API error: {e}")
+
+        data = response.json()
+        content = data.get("message", {}).get("content", "")
+
+        ai_message = AIMessage(content=content)
+        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """Stream response tokens from Ollama API."""
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": True,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/api/chat"
+        headers = self._build_headers()
+
+        try:
+            with httpx.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.strip():
+                        try:
+                            data = json.loads(line)
+                            content = data.get("message", {}).get("content", "")
+                            if content:
+                                chunk = ChatGenerationChunk(
+                                    message=AIMessageChunk(content=content)
+                                )
+                                if run_manager:
+                                    run_manager.on_llm_new_token(content, chunk=chunk)
+                                yield chunk
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            raise RuntimeError(f"Ollama streaming error: {e}")
+
+    @staticmethod
+    def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
+        """Convert LangChain messages to Ollama API format."""
+        result = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                result.append({"role": "system", "content": str(msg.content)})
+            elif isinstance(msg, HumanMessage):
+                result.append({"role": "user", "content": str(msg.content)})
+            elif isinstance(msg, AIMessage):
+                result.append({"role": "assistant", "content": str(msg.content)})
+        return result
+
+
+def get_ollama_models() -> list[tuple[str, str]]:
+    """Fetch available models from Ollama and return (model_id, display_name) tuples."""
+    base_url = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
+    try:
+        response = httpx.get(
+            f"{base_url.rstrip('/')}/api/tags",
+            timeout=5,
+        )
+        response.raise_for_status()
+        data = response.json()
+        models = []
+        for model in data.get("models", []):
+            model_id = model.get("name", "")
+            if model_id:
+                models.append((model_id, f"Ollama: {model_id}"))
+        return models
+    except Exception:
+        return [(OLLAMA_DEFAULT_MODEL, f"Ollama: {OLLAMA_DEFAULT_MODEL}")]
+
+
 # Register models with the runtime registry so TUI/clients can discover them
 try:
     from agentd.model_registry import register_model
 
-    register_model("sonnet", AGENTD_CLI_PROVIDER, display="Sonnet (Claude)", default_model=AGENTD_CLI_DEFAULT_MODEL)
+    # Claude models via AgentD CLI
+    register_model("sonnet", AGENTD_CLI_PROVIDER, display="Claude Sonnet", default_model=AGENTD_CLI_DEFAULT_MODEL)
+    register_model("opus", AGENTD_CLI_PROVIDER, display="Claude Opus")
+    register_model("haiku", AGENTD_CLI_PROVIDER, display="Claude Haiku")
+
+    # Copilot CLI
     register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI", default_model=COPILOT_CLI_DEFAULT_MODEL)
+    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Kimi 8k", default_model=KIMI_DEFAULT_MODEL)
+    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Kimi 32k")
+    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Kimi 128k")
+    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v2.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
+    register_model("mimo-7b-rl", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B RL")
+    register_model("mimo-7b-sft", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B SFT")
+
+    # Register Ollama models (always register common models, add dynamic ones if available)
+    registered_ollama = set()
+
+    # Always register common Ollama models
+    for model_id in OLLAMA_COMMON_MODELS:
+        register_model(
+            model_id,
+            OLLAMA_PROVIDER,
+            display=f"Ollama: {model_id}",
+            default_model=model_id == OLLAMA_DEFAULT_MODEL
+        )
+        registered_ollama.add(model_id)
+
+    # Try to fetch and register any additional models available on the running Ollama instance
+    try:
+        ollama_models = get_ollama_models()
+        for model_id, display_name in ollama_models:
+            if model_id not in registered_ollama:
+                register_model(
+                    model_id,
+                    OLLAMA_PROVIDER,
+                    display=display_name,
+                )
+    except Exception:
+        # Ollama might not be available, that's OK - we already registered the common models
+        pass
+
 except Exception:
     # If registry is not available (older installs), silently skip registration
     pass
