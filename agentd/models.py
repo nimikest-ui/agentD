@@ -587,20 +587,12 @@ class OllamaModel(BaseChatModel):
     call_timeout: int = 300
 
     def __init__(self, **data):
-        from agentd.auth_store import get_credential
-        # Prioritize cloud API if API key is available, otherwise use local
-        api_key = data.get("api_key") or get_credential("OLLAMA_API_KEY")
-        if api_key:
-            # Use Ollama Cloud
-            data["api_key"] = api_key
-            if "base_url" not in data or not data["base_url"]:
-                data["base_url"] = "https://ollama.com/api"
-        else:
-            # Use local Ollama
-            if "api_key" not in data:
-                data["api_key"] = ""
-            if "base_url" not in data or not data["base_url"]:
-                data["base_url"] = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
+        # Defer credential loading to avoid blocking during __init__
+        # Default to local Ollama; cloud URL is set lazily in _generate_sync if key found
+        if "api_key" not in data:
+            data["api_key"] = ""
+        if "base_url" not in data or not data["base_url"]:
+            data["base_url"] = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
         super().__init__(**data)
 
     @property
@@ -625,24 +617,8 @@ class OllamaModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """Generate a response using Ollama API (sync).
-
-        Uses asyncio.to_thread to avoid blocking errors in async contexts.
-        """
-        import asyncio
-        import threading
-
-        # Check if we're in an event loop
-        try:
-            loop = asyncio.get_running_loop()
-            # We're in an async context, use to_thread
-            return asyncio.run_coroutine_threadsafe(
-                self._agenerate(messages, stop, run_manager, **kwargs),
-                loop,
-            ).result()
-        except RuntimeError:
-            # No event loop, use blocking call
-            return self._generate_sync(messages, stop, run_manager, **kwargs)
+        """Generate a response using Ollama API (sync)."""
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
@@ -652,6 +628,14 @@ class OllamaModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Internal sync implementation of _generate."""
+        # Lazy load credential and switch to cloud URL if key is available
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            api_key = get_credential("OLLAMA_API_KEY")
+            if api_key:
+                self.api_key = api_key
+                self.base_url = "https://ollama.com/api"
+
         messages_dicts = self._convert_messages_to_dict(messages)
 
         payload = {
@@ -972,21 +956,8 @@ class KimiModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """Generate a response using Moonshot API (sync).
-
-        Uses asyncio.to_thread to avoid blocking errors in async contexts.
-        """
-        import asyncio
-        import threading
-
-        try:
-            loop = asyncio.get_running_loop()
-            return asyncio.run_coroutine_threadsafe(
-                self._agenerate(messages, stop, run_manager, **kwargs),
-                loop,
-            ).result()
-        except RuntimeError:
-            return self._generate_sync(messages, stop, run_manager, **kwargs)
+        """Generate a response using Moonshot API (sync)."""
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
@@ -1318,16 +1289,7 @@ class XiaomiModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Generate a response using Xiaomi API (sync)."""
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-            return asyncio.run_coroutine_threadsafe(
-                self._agenerate(messages, stop, run_manager, **kwargs),
-                loop,
-            ).result()
-        except RuntimeError:
-            return self._generate_sync(messages, stop, run_manager, **kwargs)
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,

@@ -33,7 +33,7 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
             f"Check that the model name is valid and required credentials are set."
         )
 
-    def llm_node(state: AgentState) -> dict[str, list]:
+    async def llm_node(state: AgentState) -> dict[str, list]:
         try:
             thread_memories = state.get("_thread_memories", [])
             messages = list(state["messages"])
@@ -47,7 +47,7 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
                         content=f"{memories_prompt}\n\n{messages[0].content}"
                     )
 
-            response = model.invoke(messages)
+            response = await model.ainvoke(messages)
             return {"messages": [response]}
         except RuntimeError as e:
             # Re-raise with better context for credential/API errors
