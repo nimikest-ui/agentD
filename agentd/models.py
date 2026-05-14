@@ -509,18 +509,32 @@ class CopilotModel(AgentDModel):
 
 
 class OllamaModel(BaseChatModel):
-    """Ollama-backed chat model for use with local LLMs via Ollama."""
+    """Ollama-backed chat model for local or cloud LLMs via Ollama.
+
+    Supports both:
+    - Local Ollama: http://localhost:11434/api (set OLLAMA_BASE_URL env var)
+    - Ollama Cloud: https://ollama.com/api (set OLLAMA_API_KEY env var)
+    """
 
     model: str = OLLAMA_DEFAULT_MODEL
-    base_url: str = OLLAMA_DEFAULT_BASE_URL
+    base_url: str = ""  # Will be set based on api_key
     api_key: str = ""
     call_timeout: int = 300
 
     def __init__(self, **data):
-        if "base_url" not in data or not data["base_url"]:
-            data["base_url"] = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
-        if "api_key" not in data and "OLLAMA_API_KEY" in os.environ:
-            data["api_key"] = os.environ["OLLAMA_API_KEY"]
+        # Prioritize cloud API if API key is available, otherwise use local
+        api_key = data.get("api_key") or os.environ.get("OLLAMA_API_KEY")
+        if api_key:
+            # Use Ollama Cloud
+            data["api_key"] = api_key
+            if "base_url" not in data or not data["base_url"]:
+                data["base_url"] = "https://ollama.com/api"
+        else:
+            # Use local Ollama
+            if "api_key" not in data:
+                data["api_key"] = ""
+            if "base_url" not in data or not data["base_url"]:
+                data["base_url"] = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
         super().__init__(**data)
 
     @property
@@ -531,8 +545,9 @@ class OllamaModel(BaseChatModel):
         return {"ls_provider": OLLAMA_PROVIDER, "ls_model_name": self.model}
 
     def _build_headers(self) -> dict[str, str]:
-        """Build HTTP headers for Ollama API."""
+        """Build HTTP headers for Ollama API (cloud or local)."""
         headers = {"Content-Type": "application/json"}
+        # Cloud API requires Bearer token; local doesn't
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
@@ -670,7 +685,37 @@ class OllamaModel(BaseChatModel):
 
 
 def get_ollama_models() -> list[tuple[str, str]]:
-    """Fetch available models from Ollama and return (model_id, display_name) tuples."""
+    """Fetch available models from Ollama cloud or local instance.
+
+    Priority:
+    1. Ollama Cloud (https://ollama.com/api) with OLLAMA_API_KEY
+    2. Local Ollama (http://localhost:11434/api)
+    3. Default fallback model
+    """
+    models = []
+    api_key = os.environ.get("OLLAMA_API_KEY")
+
+    # Try Ollama Cloud first (default)
+    if api_key:
+        try:
+            headers = {"Authorization": f"Bearer {api_key}"}
+            response = httpx.get(
+                "https://ollama.com/api/tags",
+                headers=headers,
+                timeout=5,
+            )
+            response.raise_for_status()
+            data = response.json()
+            for model in data.get("models", []):
+                model_id = model.get("name", "")
+                if model_id:
+                    models.append((model_id, f"Ollama Cloud: {model_id}"))
+            if models:
+                return models
+        except Exception:
+            pass
+
+    # Fallback to local Ollama instance
     base_url = os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
     try:
         response = httpx.get(
@@ -679,14 +724,17 @@ def get_ollama_models() -> list[tuple[str, str]]:
         )
         response.raise_for_status()
         data = response.json()
-        models = []
         for model in data.get("models", []):
             model_id = model.get("name", "")
             if model_id:
                 models.append((model_id, f"Ollama: {model_id}"))
-        return models
+        if models:
+            return models
     except Exception:
-        return [(OLLAMA_DEFAULT_MODEL, f"Ollama: {OLLAMA_DEFAULT_MODEL}")]
+        pass
+
+    # Fallback to default model
+    return [(OLLAMA_DEFAULT_MODEL, f"Ollama: {OLLAMA_DEFAULT_MODEL}")]
 
 
 # Register models with the runtime registry so TUI/clients can discover them
