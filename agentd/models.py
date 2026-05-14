@@ -44,18 +44,19 @@ COPILOT_CLI_DEFAULT_MODEL = "copilot"
 KIMI_PROVIDER = "kimi"
 KIMI_DEFAULT_MODEL = "kimi-k2.6"
 KIMI_MODELS = [
-    # Latest multimodal models
+    # Latest K2 models
     "kimi-k2.6",
     "kimi-k2.5",
-    # K2 preview models
-    "kimi-k2-0905-preview",
-    "kimi-k2-turbo-preview",
-    "kimi-k2-thinking",
-    "kimi-k2-thinking-turbo",
-    # Legacy Moonshot V1 (deprecated)
+    # Moonshot V1 auto-routing
+    "moonshot-v1-auto",
+    # Moonshot V1 text models
     "moonshot-v1-8k",
     "moonshot-v1-32k",
     "moonshot-v1-128k",
+    # Moonshot V1 vision models
+    "moonshot-v1-8k-vision-preview",
+    "moonshot-v1-32k-vision-preview",
+    "moonshot-v1-128k-vision-preview",
 ]
 
 XIOMIMIMO_PROVIDER = "xiomimimo"
@@ -1622,26 +1623,25 @@ try:
     register_model("copilot", COPILOT_CLI_PROVIDER, display="Copilot CLI",
                    description="GitHub Copilot integration. Code-focused assistance.", cost_tier=3, default_model=COPILOT_CLI_DEFAULT_MODEL)
 
-    # Kimi/Moonshot models (latest first, moderate-expensive)
+    # Kimi/Moonshot models (latest first)
     register_model("kimi-k2.6", KIMI_PROVIDER, display="Kimi K2.6 (Latest)",
                    description="Latest multimodal model. 256k context. Best reasoning & vision.", cost_tier=4, default_model=KIMI_DEFAULT_MODEL)
     register_model("kimi-k2.5", KIMI_PROVIDER, display="Kimi K2.5",
                    description="Multimodal model. 256k context. Strong across coding & vision.", cost_tier=4)
-    register_model("kimi-k2-0905-preview", KIMI_PROVIDER, display="Kimi K2 0905 Preview",
-                   description="Enhanced agentic coding. Improved front-end aesthetics & context understanding.", cost_tier=4)
-    register_model("kimi-k2-turbo-preview", KIMI_PROVIDER, display="Kimi K2 Turbo",
-                   description="High-speed K2. 60-100 tokens/sec output. 256k context.", cost_tier=4)
-    register_model("kimi-k2-thinking", KIMI_PROVIDER, display="Kimi K2 Thinking",
-                   description="Long-term reasoning model. Multi-step problem solving. 256k context.", cost_tier=5)
-    register_model("kimi-k2-thinking-turbo", KIMI_PROVIDER, display="Kimi K2 Thinking Turbo",
-                   description="Fast deep reasoning. 60-100 tokens/sec output.", cost_tier=5)
-    # Legacy models (deprecated, cheaper)
-    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k (Legacy)",
-                   description="8k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
-    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)",
-                   description="32k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
-    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)",
-                   description="128k context. Deprecated (May 25, 2026). Use kimi-k2.6 instead.", cost_tier=3)
+    register_model("moonshot-v1-auto", KIMI_PROVIDER, display="Moonshot V1 Auto",
+                   description="Auto-routing. Moonshot selects best model for your task.", cost_tier=3)
+    register_model("moonshot-v1-8k", KIMI_PROVIDER, display="Moonshot V1 8k",
+                   description="8k context window. Balanced performance and cost.", cost_tier=3)
+    register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k",
+                   description="32k context window. Better for longer documents.", cost_tier=3)
+    register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k",
+                   description="128k context window. Best for very long conversations.", cost_tier=3)
+    register_model("moonshot-v1-8k-vision-preview", KIMI_PROVIDER, display="Moonshot V1 8k Vision",
+                   description="Vision-capable. Analyzes images and text. 8k context.", cost_tier=3)
+    register_model("moonshot-v1-32k-vision-preview", KIMI_PROVIDER, display="Moonshot V1 32k Vision",
+                   description="Vision-capable. Analyzes images and text. 32k context.", cost_tier=3)
+    register_model("moonshot-v1-128k-vision-preview", KIMI_PROVIDER, display="Moonshot V1 128k Vision",
+                   description="Vision-capable. Analyzes images and text. 128k context.", cost_tier=3)
 
     # Xiaomi MiMo models (sorted: cheapest to most expensive)
     # Open-weight models - cheapest
