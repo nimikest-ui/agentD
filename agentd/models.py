@@ -59,11 +59,18 @@ KIMI_MODELS = [
 ]
 
 XIOMIMIMO_PROVIDER = "xiomimimo"
-XIOMIMIMO_DEFAULT_MODEL = "mimo-v3.5-pro"
+XIOMIMIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
 XIOMIMIMO_MODELS = [
-    "mimo-v3.5-pro",
-    "mimo-v3.5-turbo",
-    "mimo-v3.5-vision",
+    # Latest V2.5 series (April 2026)
+    "mimo-v2.5-pro",
+    "mimo-v2.5",
+    # V2 series (March 2026)
+    "mimo-v2-pro",
+    "mimo-v2-omni",
+    "mimo-v2-tts",
+    # Open-weight models
+    "mimo-v2-flash",
+    "mimo-7b",
 ]
 
 OLLAMA_PROVIDER = "ollama"
@@ -866,10 +873,17 @@ try:
     register_model("moonshot-v1-32k", KIMI_PROVIDER, display="Moonshot V1 32k (Legacy)")
     register_model("moonshot-v1-128k", KIMI_PROVIDER, display="Moonshot V1 128k (Legacy)")
 
-    # Xiaomi MiMo models (v3.5)
-    register_model("mimo-v3.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
-    register_model("mimo-v3.5-turbo", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Turbo")
-    register_model("mimo-v3.5-vision", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo v3.5 Vision")
+    # Xiaomi MiMo models (latest first)
+    # V2.5 series (April 2026)
+    register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro", default_model=XIOMIMIMO_DEFAULT_MODEL)
+    register_model("mimo-v2.5", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5")
+    # V2 series (March 2026)
+    register_model("mimo-v2-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Pro (Reasoning)")
+    register_model("mimo-v2-omni", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Omni (Multimodal)")
+    register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)")
+    # Open-weight models
+    register_model("mimo-v2-flash", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 Flash (Open)")
+    register_model("mimo-7b", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo 7B (Open)")
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()
