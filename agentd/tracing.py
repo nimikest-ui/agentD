@@ -34,14 +34,21 @@ def configure_langsmith(
         verbose=False,
     )
 
+    # If no API key provided, try to load from auth store
+    if not api_key:
+        try:
+            from agentd.auth_store import get_credential
+            api_key = get_credential("LANGSMITH_API_KEY")
+        except Exception:
+            pass
+
     if api_key:
         os.environ["LANGSMITH_API_KEY"] = api_key
+        os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGSMITH_PROJECT"] = project_name
 
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGSMITH_PROJECT"] = project_name
-
-    if workspace_id:
-        os.environ["LANGSMITH_WORKSPACE_ID"] = workspace_id
+        if workspace_id:
+            os.environ["LANGSMITH_WORKSPACE_ID"] = workspace_id
 
 
 def get_langsmith_client() -> Client:
