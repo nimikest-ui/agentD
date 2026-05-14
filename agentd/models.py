@@ -896,12 +896,12 @@ class OllamaModel(BaseChatModel):
 class KimiModel(BaseChatModel):
     """Kimi/Moonshot API-backed chat model.
 
-    Uses the OpenAI-compatible API at https://api.moonshot.cn/v1.
+    Uses the OpenAI-compatible API at https://api.moonshot.ai/v1.
     Requires MOONSHOT_API_KEY (set via env var or ~/.deepagents/.state/auth.json).
     """
 
     model: str = KIMI_DEFAULT_MODEL
-    base_url: str = "https://api.moonshot.cn/v1"
+    base_url: str = "https://api.moonshot.ai/v1"
     api_key: str = ""
     call_timeout: int = 300
 
