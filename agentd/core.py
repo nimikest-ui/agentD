@@ -34,16 +34,26 @@ def _config(thread_id: str) -> RunnableConfig:
 def _detect_provider(model: str) -> str:
     """Detect provider from model name or return default."""
     import os
+    from agentd.models import OLLAMA_COMMON_MODELS
+
     model_lower = model.lower()
+
     # Kimi/Moonshot models
     if any(x in model_lower for x in ["kimi", "moonshot"]):
         return KIMI_PROVIDER
+
     # Xiaomi MiMo models
     if any(x in model_lower for x in ["mimo", "xiaomi"]):
         return XIOMIMIMO_PROVIDER
-    # Ollama: colon-style tags (llama2:13b) and not a known cloud model
+
+    # Ollama models: colon-style tags (llama2:13b) or common model names
     if ":" in model and not any(x in model_lower for x in ["sonnet", "claude", "copilot"]):
         return OLLAMA_PROVIDER
+
+    # Check if it's a known Ollama common model (e.g., llama2, mistral, phi)
+    if model in OLLAMA_COMMON_MODELS:
+        return OLLAMA_PROVIDER
+
     # Check environment variable
     env_provider = os.environ.get("AGENTD_PROVIDER", AGENTD_CLI_PROVIDER)
     return env_provider
