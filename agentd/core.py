@@ -75,16 +75,27 @@ class Agent:
         if provider is None:
             provider = _detect_provider(model)
 
-        if provider == COPILOT_CLI_PROVIDER:
-            return CopilotModel(model=model_name, **kwargs)
-        elif provider == KIMI_PROVIDER:
-            return KimiModel(model=model_name, **kwargs)
-        elif provider == XIOMIMIMO_PROVIDER:
-            return XiaomiModel(model=model_name, **kwargs)
-        elif provider == OLLAMA_PROVIDER:
-            return OllamaModel(model=model_name, **kwargs)
-        else:
-            return AgentDModel(model=model_name, **kwargs)
+        try:
+            if provider == COPILOT_CLI_PROVIDER:
+                return CopilotModel(model=model_name, **kwargs)
+            elif provider == KIMI_PROVIDER:
+                return KimiModel(model=model_name, **kwargs)
+            elif provider == XIOMIMIMO_PROVIDER:
+                return XiaomiModel(model=model_name, **kwargs)
+            elif provider == OLLAMA_PROVIDER:
+                return OllamaModel(model=model_name, **kwargs)
+            else:
+                return AgentDModel(model=model_name, **kwargs)
+        except NotImplementedError as e:
+            raise RuntimeError(
+                f"Model '{model_name}' from provider '{provider}' is not fully implemented. "
+                f"Error: {str(e) or 'Unknown NotImplementedError'}. "
+                f"Please check that the model is supported and credentials are configured."
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize model '{model_name}' from provider '{provider}': {type(e).__name__}: {str(e)}"
+            ) from e
 
     def __init__(
         self,
@@ -93,12 +104,32 @@ class Agent:
         db_path: str | Path | None = None,
         checkpointer: Optional[BaseCheckpointSaver] = None,
         store: Optional[BaseStore] = None,
+        task: str = "",
         **kwargs,
     ):
+        from agentd.tracing import configure_langsmith
+        from agentd.session_logger import SessionLogger
+
+        configure_langsmith()
+
+        # Initialize session logger
+        detected_provider = provider or _detect_provider(model)
+        self.session_logger = SessionLogger(
+            model=model,
+            provider=detected_provider,
+            task=task,
+        )
+        self.session_logger.log(
+            "agent_init",
+            f"Initializing Agent with model={model}, provider={detected_provider}",
+        )
+
         self.model_name = model
         self.agent_model = self._create_model(model, provider, **kwargs)
         self._store = store or make_store()
         self._owns_cm = False
+        self._backend = None
+        self._mode = "standalone"
 
         if checkpointer is not None:
             self._checkpointer = checkpointer
@@ -115,13 +146,20 @@ class Agent:
         )
 
     def close(self) -> None:
-        """Close the SQLite connection."""
+        """Close the SQLite connection and save session log."""
         if self._owns_cm:
             try:
                 self._cm.__exit__(None, None, None)
             except (OSError, RuntimeError, AttributeError):
                 pass
             self._owns_cm = False
+
+        # Save session log
+        if hasattr(self, 'session_logger'):
+            try:
+                self.session_logger.save()
+            except Exception as e:
+                print(f"Warning: Failed to save session log: {e}", file=__import__('sys').stderr)
 
     def __del__(self):
         self.close()
@@ -132,19 +170,72 @@ class Agent:
     def invoke(self, message: str, thread_id: str = "default") -> dict[str, Any]:
         """Send a message and return the final state dict."""
         from langchain_core.messages import HumanMessage
-        return self.graph.invoke(
-            {"messages": [HumanMessage(content=message)]},
-            config=_config(thread_id),
-        )
+        import sys
+
+        try:
+            self.session_logger.log(
+                "invoke_start",
+                f"Starting invoke with message length={len(message)}",
+                {"thread_id": thread_id},
+            )
+            result = self.graph.invoke(
+                {"messages": [HumanMessage(content=message)]},
+                config=_config(thread_id),
+            )
+            self.session_logger.record_turn(
+                messages=[message],
+                metadata={"thread_id": thread_id},
+            )
+            return result
+        except Exception as e:
+            error_msg = str(e)
+            self.session_logger.log_error(
+                error_type=type(e).__name__,
+                message=error_msg,
+                provider=self.session_logger.provider,
+                model=self.session_logger.model,
+                operation="invoke",
+                details={"thread_id": thread_id, "message_length": len(message)},
+            )
+            # Re-raise with enhanced context
+            raise RuntimeError(
+                f"Agent invocation failed with {self.session_logger.provider}/{self.session_logger.model}: {error_msg}"
+            ) from e
 
     def stream(self, message: str, thread_id: str = "default") -> Iterator[dict]:
         """Stream graph state updates for a message."""
         from langchain_core.messages import HumanMessage
-        yield from self.graph.stream(
-            {"messages": [HumanMessage(content=message)]},
-            config=_config(thread_id),
-            stream_mode="updates",
+
+        self.session_logger.log(
+            "stream_start",
+            f"Starting stream with message length={len(message)}",
+            {"thread_id": thread_id},
         )
+
+        try:
+            for chunk in self.graph.stream(
+                {"messages": [HumanMessage(content=message)]},
+                config=_config(thread_id),
+                stream_mode="updates",
+            ):
+                yield chunk
+            self.session_logger.record_turn(
+                messages=[message],
+                metadata={"thread_id": thread_id},
+            )
+        except Exception as e:
+            error_msg = str(e)
+            self.session_logger.log_error(
+                error_type=type(e).__name__,
+                message=error_msg,
+                provider=self.session_logger.provider,
+                model=self.session_logger.model,
+                operation="stream",
+                details={"thread_id": thread_id, "message_length": len(message)},
+            )
+            raise RuntimeError(
+                f"Agent stream failed with {self.session_logger.provider}/{self.session_logger.model}: {error_msg}"
+            ) from e
 
     def get_state(self, thread_id: str) -> Any:
         """Return the current StateSnapshot for a thread."""

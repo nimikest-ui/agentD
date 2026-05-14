@@ -91,6 +91,32 @@ OLLAMA_COMMON_MODELS = [
 ]
 
 
+def add_context_to_error(
+    error: Exception,
+    provider: str,
+    model: str,
+    operation: str,
+) -> Exception:
+    """Wrap exception with explicit context about which provider/model/operation failed.
+
+    Args:
+        error: Original exception
+        provider: Provider name
+        model: Model name
+        operation: What operation was being attempted
+
+    Returns:
+        RuntimeError with explicit context
+    """
+    base_msg = str(error) if str(error) else type(error).__name__
+    context_msg = (
+        f"[{provider}/{model}] {operation} failed: {base_msg}"
+    )
+    new_error = RuntimeError(context_msg)
+    new_error.__cause__ = error
+    return new_error
+
+
 class AgentDModel(BaseChatModel):
     """LangChain BaseChatModel that shells out to the claude CLI binary."""
 
@@ -110,7 +136,14 @@ class AgentDModel(BaseChatModel):
         if "cli_binary" not in data or not data["cli_binary"]:
             binary = shutil.which("claude") or "/root/.local/bin/claude"
             data["cli_binary"] = binary
-        super().__init__(**data)
+
+        try:
+            super().__init__(**data)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize AgentDModel with model '{data.get('model', 'unknown')}': "
+                f"{type(e).__name__}: {str(e)}"
+            ) from e
 
     @property
     def _llm_type(self) -> str:
@@ -427,7 +460,14 @@ class CopilotModel(AgentDModel):
             ]
             binary = next((p for p in candidates if p), "/usr/bin/copilot")
             data["cli_binary"] = binary
-        super().__init__(**data)
+
+        try:
+            super().__init__(**data)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize CopilotModel with model '{data.get('model', 'unknown')}': "
+                f"{type(e).__name__}: {str(e)}"
+            ) from e
 
     @property
     def _llm_type(self) -> str:
@@ -959,8 +999,8 @@ class KimiModel(BaseChatModel):
         """Internal sync implementation of _generate."""
         if not self.api_key:
             raise RuntimeError(
-                "MOONSHOT_API_KEY not found. Set it via environment variable "
-                "MOONSHOT_API_KEY or use /auth command in TUI."
+                f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
+                f"Set it via environment variable MOONSHOT_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
@@ -1044,8 +1084,8 @@ class KimiModel(BaseChatModel):
         """Generate a response using Moonshot API (async)."""
         if not self.api_key:
             raise RuntimeError(
-                "MOONSHOT_API_KEY not found. Set it via environment variable "
-                "MOONSHOT_API_KEY or use /auth command in TUI."
+                f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
+                f"Set it via environment variable MOONSHOT_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
@@ -1129,8 +1169,8 @@ class KimiModel(BaseChatModel):
         """Stream response tokens from Moonshot API."""
         if not self.api_key:
             raise RuntimeError(
-                "MOONSHOT_API_KEY not found. Set it via environment variable "
-                "MOONSHOT_API_KEY or use /auth command in TUI."
+                f"[kimi/{self.model}] Authentication failed: MOONSHOT_API_KEY not found. "
+                f"Set it via environment variable MOONSHOT_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
@@ -1286,8 +1326,8 @@ class XiaomiModel(BaseChatModel):
         """Internal sync implementation of _generate."""
         if not self.api_key:
             raise RuntimeError(
-                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
-                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+                f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
+                f"Set it via environment variable XIOMIMIMO_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
@@ -1370,8 +1410,8 @@ class XiaomiModel(BaseChatModel):
         """Generate a response using Xiaomi API (async)."""
         if not self.api_key:
             raise RuntimeError(
-                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
-                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+                f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
+                f"Set it via environment variable XIOMIMIMO_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
@@ -1454,8 +1494,8 @@ class XiaomiModel(BaseChatModel):
         """Stream response tokens from Xiaomi API."""
         if not self.api_key:
             raise RuntimeError(
-                "XIOMIMIMO_API_KEY not found. Set it via environment variable "
-                "XIOMIMIMO_API_KEY or use /auth command in TUI."
+                f"[xiomimimo/{self.model}] Authentication failed: XIOMIMIMO_API_KEY not found. "
+                f"Set it via environment variable XIOMIMIMO_API_KEY or use /auth command in TUI."
             )
 
         messages_dicts = self._convert_messages_to_dict(messages)
