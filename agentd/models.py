@@ -974,9 +974,19 @@ class KimiModel(BaseChatModel):
     ) -> ChatResult:
         """Generate a response using Moonshot API (sync).
 
-        Always uses sync implementation to avoid blocking issues in async contexts.
+        Uses asyncio.to_thread to avoid blocking errors in async contexts.
         """
-        return self._generate_sync(messages, stop, run_manager, **kwargs)
+        import asyncio
+        import threading
+
+        try:
+            loop = asyncio.get_running_loop()
+            return asyncio.run_coroutine_threadsafe(
+                self._agenerate(messages, stop, run_manager, **kwargs),
+                loop,
+            ).result()
+        except RuntimeError:
+            return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
@@ -1307,11 +1317,17 @@ class XiaomiModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        """Generate a response using Xiaomi API (sync).
+        """Generate a response using Xiaomi API (sync)."""
+        import asyncio
 
-        Always uses sync implementation to avoid blocking issues in async contexts.
-        """
-        return self._generate_sync(messages, stop, run_manager, **kwargs)
+        try:
+            loop = asyncio.get_running_loop()
+            return asyncio.run_coroutine_threadsafe(
+                self._agenerate(messages, stop, run_manager, **kwargs),
+                loop,
+            ).result()
+        except RuntimeError:
+            return self._generate_sync(messages, stop, run_manager, **kwargs)
 
     def _generate_sync(
         self,
