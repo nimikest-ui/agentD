@@ -22,3 +22,23 @@ class TestPersistenceFactories:
         from langgraph.store.memory import InMemoryStore
         store = make_store()
         assert isinstance(store, InMemoryStore)
+
+
+class TestGraphStructure:
+    def test_agent_state_has_thread_memories_field(self):
+        from agentd.graph import AgentState
+        assert "_thread_memories" in AgentState.__annotations__
+
+    def test_build_graph_returns_compiled_graph(self):
+        from langgraph.checkpoint.memory import MemorySaver
+        from agentd.graph import build_graph
+        graph = build_graph(model_name="sonnet", checkpointer=MemorySaver())
+        assert hasattr(graph, "invoke")
+        assert hasattr(graph, "get_state")
+        assert hasattr(graph, "get_state_history")
+        assert hasattr(graph, "update_state")
+
+    def test_build_graph_without_checkpointer(self):
+        from agentd.graph import build_graph
+        graph = build_graph(model_name="sonnet")
+        assert hasattr(graph, "invoke")
