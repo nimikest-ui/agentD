@@ -6,12 +6,10 @@ Combines Browser-Use and Firecrawl for comprehensive web research
 
 from typing import Optional, Dict, Any
 import json
+import os
 
-try:
-    from browser_use import Agent as BrowserAgent
-    BROWSER_USE_AVAILABLE = True
-except ImportError:
-    BROWSER_USE_AVAILABLE = False
+import importlib.util
+BROWSER_USE_AVAILABLE = importlib.util.find_spec("browser_use") is not None
 
 try:
     from firecrawl import FirecrawlApp
@@ -69,17 +67,36 @@ class BrowserToolkit:
         }
 
     def extract_with_firecrawl(self, url: str) -> Optional[str]:
-        """Extract markdown from URL using Firecrawl"""
-        if not self.firecrawl:
-            return None
-
+        """Extract markdown from URL using Firecrawl API."""
+        api_key = os.environ.get("FIRECRAWL_API_KEY")
+        if not api_key:
+            return "Error: FIRECRAWL_API_KEY not set. Run '/auth' in TUI or set the env var."
         try:
-            # Would require valid Firecrawl API key
-            # result = self.firecrawl.scrape_url(url, params={"formats": ["markdown"]})
-            # return result.get("markdown")
-            return f"[Firecrawl would extract: {url}]"
+            from firecrawl import FirecrawlApp
+            app = FirecrawlApp(api_key=api_key)
+            doc = app.scrape(url, formats=["markdown"])
+            return doc.markdown or f"No markdown content at {url}"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Firecrawl error scraping {url}: {e}"
+
+    def search_with_firecrawl(self, query: str, limit: int = 5) -> str:
+        """Search the web using Firecrawl and return results as markdown."""
+        api_key = os.environ.get("FIRECRAWL_API_KEY")
+        if not api_key:
+            return "Error: FIRECRAWL_API_KEY not set. Run '/auth' in TUI or set the env var."
+        try:
+            from firecrawl import FirecrawlApp
+            app = FirecrawlApp(api_key=api_key)
+            results = app.search(query, limit=limit)
+            lines = [f"# Search results for: {query}\n"]
+            for r in results.results:
+                lines.append(f"## [{r.title}]({r.url})")
+                if r.description:
+                    lines.append(r.description)
+                lines.append("")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Firecrawl search error for '{query}': {e}"
 
     async def browser_task(self, instruction: str) -> Optional[str]:
         """Execute task using Browser-Use"""
