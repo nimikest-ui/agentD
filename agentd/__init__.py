@@ -28,12 +28,24 @@ from agentd.research_tools import (
     link_nodes,
     save_skill_insight,
 )
+from agentd.persistence import make_checkpointer, make_store
+from agentd.graph import build_graph, AgentState
+
 from agentd.tracing import (
     configure_langsmith,
     get_langsmith_client,
     create_anthropic_client,
     trace_run,
     traceable,
+)
+
+from agentd.model_registry import (
+    get_models,
+    get_model,
+    get_models_by_provider,
+    list_all_models,
+    get_providers,
+    register_model,
 )
 
 __all__ = [
@@ -63,5 +75,15 @@ __all__ = [
     "create_anthropic_client",
     "trace_run",
     "traceable",
+    "get_models",
+    "get_model",
+    "get_models_by_provider",
+    "list_all_models",
+    "get_providers",
+    "register_model",
     "__version__",
+    "make_checkpointer",
+    "make_store",
+    "build_graph",
+    "AgentState",
 ]
