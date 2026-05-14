@@ -522,8 +522,9 @@ class OllamaModel(BaseChatModel):
     call_timeout: int = 300
 
     def __init__(self, **data):
+        from agentd.auth_store import get_credential
         # Prioritize cloud API if API key is available, otherwise use local
-        api_key = data.get("api_key") or os.environ.get("OLLAMA_API_KEY")
+        api_key = data.get("api_key") or get_credential("OLLAMA_API_KEY")
         if api_key:
             # Use Ollama Cloud
             data["api_key"] = api_key
@@ -691,9 +692,14 @@ def get_ollama_models() -> list[tuple[str, str]]:
     1. Ollama Cloud (https://ollama.com/api) with OLLAMA_API_KEY
     2. Local Ollama (http://localhost:11434/api)
     3. Default fallback model
+
+    OLLAMA_API_KEY can be set via:
+    - Environment variable: export OLLAMA_API_KEY=...
+    - TUI /auth command: stores in ~/.deepagents/.state/auth.json
     """
+    from agentd.auth_store import get_credential
     models = []
-    api_key = os.environ.get("OLLAMA_API_KEY")
+    api_key = get_credential("OLLAMA_API_KEY")
 
     # Try Ollama Cloud first (default)
     if api_key:

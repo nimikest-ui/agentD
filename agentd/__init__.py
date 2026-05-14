@@ -48,6 +48,15 @@ from agentd.model_registry import (
     register_model,
 )
 
+from agentd.auth_store import (
+    get_credential,
+    set_credential,
+    delete_credential,
+    load_credentials,
+    save_credentials,
+    get_supported_keys,
+)
+
 __all__ = [
     "Agent",
     "AgentDModel",
@@ -81,6 +90,12 @@ __all__ = [
     "list_all_models",
     "get_providers",
     "register_model",
+    "get_credential",
+    "set_credential",
+    "delete_credential",
+    "load_credentials",
+    "save_credentials",
+    "get_supported_keys",
     "__version__",
     "make_checkpointer",
     "make_store",
