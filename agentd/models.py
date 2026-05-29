@@ -119,30 +119,25 @@ OLLAMA_COMMON_MODELS = [
 ]
 
 
-def add_context_to_error(
-    error: Exception,
-    provider: str,
-    model: str,
-    operation: str,
-) -> Exception:
-    """Wrap exception with explicit context about which provider/model/operation failed.
+def _bearer_headers(api_key: str) -> dict[str, str]:
+    """Build JSON HTTP headers, adding a Bearer token when an API key is set."""
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
 
-    Args:
-        error: Original exception
-        provider: Provider name
-        model: Model name
-        operation: What operation was being attempted
 
-    Returns:
-        RuntimeError with explicit context
-    """
-    base_msg = str(error) if str(error) else type(error).__name__
-    context_msg = (
-        f"[{provider}/{model}] {operation} failed: {base_msg}"
-    )
-    new_error = RuntimeError(context_msg)
-    new_error.__cause__ = error
-    return new_error
+def _messages_to_role_dicts(messages: list[BaseMessage]) -> list[dict]:
+    """Convert LangChain messages to OpenAI/Ollama-compatible {role, content} dicts."""
+    result = []
+    for msg in messages:
+        if isinstance(msg, SystemMessage):
+            result.append({"role": "system", "content": str(msg.content)})
+        elif isinstance(msg, HumanMessage):
+            result.append({"role": "user", "content": str(msg.content)})
+        elif isinstance(msg, AIMessage):
+            result.append({"role": "assistant", "content": str(msg.content)})
+    return result
 
 
 class AgentDModel(BaseChatModel):
@@ -666,11 +661,7 @@ class OllamaModel(BaseChatModel):
 
     def _build_headers(self) -> dict[str, str]:
         """Build HTTP headers for Ollama API (cloud or local)."""
-        headers = {"Content-Type": "application/json"}
-        # Cloud API requires Bearer token; local doesn't
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        return headers
+        return _bearer_headers(self.api_key)
 
     def _generate(
         self,
@@ -978,15 +969,7 @@ class OllamaModel(BaseChatModel):
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
         """Convert LangChain messages to Ollama API format."""
-        result = []
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                result.append({"role": "system", "content": str(msg.content)})
-            elif isinstance(msg, HumanMessage):
-                result.append({"role": "user", "content": str(msg.content)})
-            elif isinstance(msg, AIMessage):
-                result.append({"role": "assistant", "content": str(msg.content)})
-        return result
+        return _messages_to_role_dicts(messages)
 
 
 class KimiModel(BaseChatModel):
@@ -1022,10 +1005,7 @@ class KimiModel(BaseChatModel):
 
     def _build_headers(self) -> dict[str, str]:
         """Build HTTP headers for Moonshot API."""
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        return headers
+        return _bearer_headers(self.api_key)
 
     def _generate(
         self,
@@ -1318,15 +1298,7 @@ class KimiModel(BaseChatModel):
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
         """Convert LangChain messages to OpenAI-compatible format."""
-        result = []
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                result.append({"role": "system", "content": str(msg.content)})
-            elif isinstance(msg, HumanMessage):
-                result.append({"role": "user", "content": str(msg.content)})
-            elif isinstance(msg, AIMessage):
-                result.append({"role": "assistant", "content": str(msg.content)})
-        return result
+        return _messages_to_role_dicts(messages)
 
 
 class XiaomiModel(BaseChatModel):
@@ -1362,10 +1334,7 @@ class XiaomiModel(BaseChatModel):
 
     def _build_headers(self) -> dict[str, str]:
         """Build HTTP headers for Xiaomi API."""
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        return headers
+        return _bearer_headers(self.api_key)
 
     def _generate(
         self,
@@ -1655,15 +1624,7 @@ class XiaomiModel(BaseChatModel):
     @staticmethod
     def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
         """Convert LangChain messages to OpenAI-compatible format."""
-        result = []
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                result.append({"role": "system", "content": str(msg.content)})
-            elif isinstance(msg, HumanMessage):
-                result.append({"role": "user", "content": str(msg.content)})
-            elif isinstance(msg, AIMessage):
-                result.append({"role": "assistant", "content": str(msg.content)})
-        return result
+        return _messages_to_role_dicts(messages)
 
 
 def get_ollama_models() -> list[tuple[str, str]]:

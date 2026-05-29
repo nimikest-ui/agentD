@@ -14,13 +14,9 @@ BROWSER_USE_AVAILABLE = importlib.util.find_spec("browser_use") is not None
 
 def _make_browser_llm():
     """Create a LangChain chat model for browser-use based on current TUI model config."""
-    import tomllib
-    config_path = os.path.expanduser("~/.deepagents/config.toml")
-    provider_spec = "agentd-cli:sonnet"
-    if os.path.exists(config_path):
-        with open(config_path, "rb") as f:
-            config = tomllib.load(f)
-        provider_spec = config.get("models", {}).get("recent", provider_spec)
+    from agentd.config import load_deepagents_config
+    config = load_deepagents_config()
+    provider_spec = config.get("models", {}).get("recent", "agentd-cli:sonnet")
 
     provider, _, model = provider_spec.partition(":")
     if not model:
@@ -31,12 +27,7 @@ def _make_browser_llm():
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model="claude-haiku-4-5-20251001")
 
-    providers = {}
-    if os.path.exists(config_path):
-        with open(config_path, "rb") as f:
-            cfg = tomllib.load(f)
-        providers = cfg.get("models", {}).get("providers", {})
-
+    providers = config.get("models", {}).get("providers", {})
     prov_cfg = providers.get(provider, {})
     api_key_env = prov_cfg.get("api_key_env", "")
     api_key = os.environ.get(api_key_env, "placeholder")
