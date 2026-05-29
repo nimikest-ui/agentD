@@ -5,20 +5,24 @@ This project is indexed by GitNexus as **agentD** (2079 symbols, 3026 relationsh
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
-## Always Do
+## Claude Is In Charge of GitNexus
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+**I (Claude) own all GitNexus workflows.** I proactively run impact analysis, detect changes, and trace code — without asking for permission. The rules below are non-negotiable for this codebase.
 
-## Never Do
+## I Always Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- **Run impact analysis before editing any symbol.** Before modifying any function, class, or method, I execute `mcp__gitnexus__impact({target: "symbolName", direction: "upstream"})` and report the blast radius to you (direct callers, affected processes, risk level).
+- **Run `mcp__gitnexus__detect_changes()` before committing.** I verify that my changes only affect expected symbols and execution flows.
+- **Warn you immediately** if impact analysis returns HIGH or CRITICAL risk — I do not proceed with edits without your explicit approval.
+- **Use `mcp__gitnexus__query()` for exploration.** Instead of grepping unfamiliar code, I search for execution flows ranked by relevance.
+- **Use `mcp__gitnexus__context()` for symbol context.** When I need callers, callees, or which execution flows a symbol participates in, I fetch the full 360-degree view.
+
+## I Never Do
+
+- Never edit a function, class, or method without first running `mcp__gitnexus__impact` on it.
+- Never ignore HIGH or CRITICAL risk warnings.
+- Never use find-and-replace for renames — I always use `mcp__gitnexus__rename` which understands the call graph.
+- Never commit changes without running `mcp__gitnexus__detect_changes()` first.
 
 ## Resources
 
