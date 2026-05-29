@@ -175,7 +175,7 @@ agent = Agent(model="sonnet")
 ### `D` command not found
 Make sure you're in the venv:
 ```bash
-source /root/lang/.venv/bin/activate
+source venv/bin/activate
 D
 ```
 
@@ -225,19 +225,6 @@ D "quick task"
 
 ---
 
-## Production Readiness
-
-✅ **12+ conversations tested**
-✅ **245+ checkpoints stored**
-✅ **312+ messages logged**
-✅ **3.5 MB data persisted**
-✅ **No API key required**
-✅ **Full session resumption**
-✅ **Persistent memory working**
-✅ **Token counting enabled**
-
----
-
 ## Next Steps
 
 1. **Install**: `pip install -e .`
@@ -250,11 +237,8 @@ D "quick task"
 
 ## Documentation
 
-- `README.md` — Project overview
-- `SESSION_LOGGING_ARCHITECTURE.md` — Session logging details
-- `LANGGRAPH_MEMORY_INTEGRATION.md` — Memory system architecture
-- `QUICK_REFERENCE.md` — Quick usage guide
+See the [project README](../README.md) for the full documentation index.
 
 ---
 
-**AgentD** — Production-grade LLM agents. No API key. Full session logging. ✅
+**AgentD** — Production-grade LLM agents. No API key. Full session logging.

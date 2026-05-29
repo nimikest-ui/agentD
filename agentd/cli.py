@@ -70,46 +70,15 @@ def run_non_interactive(task: str, thread_id: str = "default", model: str = "son
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-def run_non_interactive(task: str, thread_id: str = "default", model: str = "sonnet") -> int:
-    """Run a task through Agent.invoke() with thread persistence.
-
-    Args:
-        task: The task text to run.
-        thread_id: Thread ID for checkpoint isolation.
-        model: Model name.
-
-    Returns:
-        Exit code (0 = success).
-    """
-    from agentd.core import Agent
-    try:
-        agent = Agent(model=model)
-        result = agent.invoke(task, thread_id=thread_id)
-        messages = result.get("messages", [])
-        if messages:
-            last = messages[-1]
-            print(getattr(last, "content", str(last)))
-        agent.close()
-        return 0
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
 
 def _get_startup_model() -> str:
     """Read startup model from ~/.deepagents/config.toml.
 
     Priority: [models].default > [models].recent > fallback haiku.
     """
-    import tomllib
-    config_path = Path.home() / ".deepagents" / "config.toml"
-    try:
-        with config_path.open("rb") as f:
-            data = tomllib.load(f)
-        models = data.get("models", {})
-        return models.get("default") or models.get("recent") or "agentd-cli:haiku"
-    except Exception:
-        return "agentd-cli:haiku"
+    from agentd.config import load_deepagents_config
+    models = load_deepagents_config().get("models", {})
+    return models.get("default") or models.get("recent") or "agentd-cli:haiku"
 
 
 def main():

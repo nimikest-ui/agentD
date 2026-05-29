@@ -1,7 +1,15 @@
+# Agent Instructions
+
+All agent guidance for this repository — including the GitNexus code-intelligence
+workflow (impact analysis before edits, `detect_changes` before commits, etc.) — lives
+in **[CLAUDE.md](CLAUDE.md)**, the single source of truth.
+
+Please read [CLAUDE.md](CLAUDE.md).
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **agentD** (2079 symbols, 3026 relationships, 45 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **agentD** (1029 symbols, 1660 relationships, 43 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

@@ -61,7 +61,7 @@ D -M llama2 "solve this"
 D -M mistral -n "write code"
 ```
 
-See [OLLAMA_SETUP.md](OLLAMA_SETUP.md) for details.
+See [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) for details.
 
 ## Features
 
@@ -194,7 +194,7 @@ agentD/
 │   ├── core.py               # Agent class
 │   ├── models.py             # AgentDModel (Claude CLI wrapper)
 │   └── memory.py             # Memory system
-├── setup.py                  # Package config
+├── pyproject.toml            # Package config (sole source of truth)
 └── README.md                 # This file
 ```
 
@@ -218,14 +218,17 @@ pytest tests/
 
 ## Documentation
 
-See documentation files for detailed information:
+Detailed guides live in [`docs/`](docs/):
 
-- `SESSION_LOGGING_ARCHITECTURE.md` — Full session logging details
-- `LANGGRAPH_MEMORY_INTEGRATION.md` — Memory system architecture
-- `OPTIMIZATION_SUMMARY.md` — 4 core optimizations
-- `QUICK_REFERENCE.md` — Quick usage guide
-
----
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Layered architecture, memory, session logging
+- [`docs/LIBRARY.md`](docs/LIBRARY.md) — Installation, CLI, and Python API usage
+- [`docs/SLASH_COMMANDS.md`](docs/SLASH_COMMANDS.md) — Full TUI slash-command reference
+- [`docs/MODEL_REFERENCE.md`](docs/MODEL_REFERENCE.md) — Available models
+- [`docs/OLLAMA_SETUP.md`](docs/OLLAMA_SETUP.md) — Local Ollama models
+- [`docs/BROWSER_RESEARCH_GUIDE.md`](docs/BROWSER_RESEARCH_GUIDE.md) — Browser & deep research
+- [`docs/PENTESTER_TUI_INTEGRATION.md`](docs/PENTESTER_TUI_INTEGRATION.md) — Pentester research features
+- [`docs/LANGSMITH_SETUP.md`](docs/LANGSMITH_SETUP.md) — LangSmith tracing
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — Deployment & distribution
 
 ---
 
