@@ -131,3 +131,12 @@ dmypy.json
 *.db
 *.db-wal
 *.db-shm
+
+# Runtime state (generated at runtime, not source)
+sessions/
+memory.json
+techniques.json
+*.jsonl
+
+# Debian packages (system dependencies, not source)
+*.deb

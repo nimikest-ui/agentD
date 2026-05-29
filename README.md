@@ -1,75 +1,67 @@
-# AgentD - LLM Agent Framework
+# agentD
 
-**Production-grade agentic framework with full session logging, persistent memory, token tracking, and Claude CLI integration.**
+**agentD** is a TUI-first AI agent built by merging two projects:
 
-- ✅ **No API Key Required** — Uses Claude CLI binary
-- ✅ **Full Session Logging** — SQLite checkpoints (245+ snapshots, 312+ messages)
-- ✅ **Persistent Memory** — LangGraph-backed dual-layer memory system
-- ✅ **Token Aware** — Real-time token counting and context window monitoring
-- ✅ **Production Ready** — Battle-tested with 12 unique conversations
+- **[deepagents](https://docs.langchain.com/oss/python/deepagents/overview)** — the terminal UI, threading, session management, and skill system
+- **ForestGump** — a bare-metal shell agent with PTY execution, persistent memory, and learned techniques
+
+The result is a production-grade pentesting and research agent that runs in your terminal, requires no API key, and remembers everything across sessions.
+
+```
+┌─────────────────────────────────────────────────────┐
+│              deepagents TUI (terminal UI)             │
+│         threads · sessions · skills · models          │
+├─────────────────────────────────────────────────────┤
+│           agentD library (this repo)                  │
+│   LangGraph graph · memory · browser · MCP server     │
+├─────────────────────────────────────────────────────┤
+│          ForestGump execution engine                  │
+│     PTY shell · safety guards · technique memory      │
+├─────────────────────────────────────────────────────┤
+│    Claude CLI / Ollama / Kimi / Anthropic API         │
+└─────────────────────────────────────────────────────┘
+```
+
+- **No API key required** — defaults to Claude CLI (OAuth)
+- **Persistent memory** — facts, credentials, techniques survive restarts
+- **Browser automation** — Playwright + browser-use built in
+- **Security skills** — pentest-workflow, bug-bounty-toolkit, deep-research
+- **Multi-model** — Claude, Ollama (local), Kimi, XiaoMi MiMo, Copilot
 
 ---
 
 ## Quick Start
 
-### Installation
-
 ```bash
-# Clone the repo
 git clone https://github.com/yourusername/agentD.git
 cd agentD
-
-# Install in development mode
-pip install -e .
+bash setup.sh                   # creates venv, installs everything, downloads Chromium
+source venv/bin/activate
+D                               # launch TUI
 ```
 
 ### Usage
 
-**Simple Command (with auto-approval):**
 ```bash
-D "your task"
-D -M ollama llama2 "your task"  # With local Ollama model
-```
-
-**Full TUI:**
-```bash
-D
-D -M llama2  # With specific model
-```
-
-**Resume a conversation:**
-```bash
-D --thread-id <thread-id>
-```
-
-**Non-interactive:**
-```bash
-D -n "run this task"
-```
-
-**With Ollama models:**
-```bash
-# Make sure Ollama is running: ollama serve
-D -M llama2 "solve this"
-D -M mistral -n "write code"
+D                               # Full interactive TUI
+D --bare                        # Bare-metal shell agent (ForestGump mode)
+D -n "your task"                # Non-interactive single task
+D -M haiku "quick question"     # Use a specific model
+D -r                            # Resume last conversation
+D --thread-id <id>              # Resume specific thread
 ```
 
 ---
 
-## Ollama Integration
-
-Run agentD with local LLMs via Ollama. No API keys required.
+## Ollama (local models)
 
 ```bash
-# Start Ollama server
 ollama serve
-
-# In another terminal, use agentD with Ollama models
-D -M llama2 "solve this problem"
-D -M mistral "write a script"
+D -M llama2 "solve this"
+D -M mistral -n "write code"
 ```
 
-For detailed setup, see [OLLAMA_SETUP.md](OLLAMA_SETUP.md).
+See [OLLAMA_SETUP.md](OLLAMA_SETUP.md) for details.
 
 ## Features
 
@@ -99,23 +91,25 @@ For detailed setup, see [OLLAMA_SETUP.md](OLLAMA_SETUP.md).
 
 ## Architecture
 
+agentD is the library layer between deepagents (TUI) and your LLM:
+
 ```
-┌─────────────────────────────────────────┐
-│         AgentD TUI (Textual)             │
-├─────────────────────────────────────────┤
-│  AgentDModel (LangChain BaseChatModel)  │
-├─────────────────────────────────────────┤
-│  SQLite Session DB + JSON Memory File   │
-├─────────────────────────────────────────┤
-│       Claude CLI (subprocess)            │
-└─────────────────────────────────────────┘
+deepagents TUI  →  agentd/cli.py  →  agentd/core.py (Agent)
+                                           │
+                        ┌──────────────────┼──────────────────┐
+                        ▼                  ▼                   ▼
+                  agentd/graph.py   agentd/models.py   agentd/browser_tools.py
+                  (LangGraph)       (LLM providers)    (Playwright)
+                        │
+                  agentd/memory.py + agentd/session_logger.py
+                  (persistent state across sessions)
 ```
 
 ### Data Storage
 
 ```
-~/.agentd/.state/sessions.db       Session checkpoints & message history
-~/.agentd_memories.json            Global user memories
+~/.deepagents/.state/sessions.db   Session checkpoints & message history
+~/.deepagents/.state/auth.json     API credentials
 ```
 
 ---
@@ -208,12 +202,10 @@ agentD/
 
 ## Development
 
-### Setup Development Environment
-
 ```bash
 git clone https://github.com/yourusername/agentD.git
 cd agentD
-pip install -e ".[dev]"
+bash setup.sh          # handles venv + pip install -e .[dev] + playwright
 ```
 
 ### Run Tests
@@ -234,22 +226,6 @@ See documentation files for detailed information:
 - `QUICK_REFERENCE.md` — Quick usage guide
 
 ---
-
-## Limitations
-
-- ❌ Browser use not available (requires API key)
-- ⚠️ SQLite database grows with usage (cleanup not yet implemented)
-
----
-
-## Future Enhancements
-
-- [ ] `/forget <fact>` command
-- [ ] `/remember --search <term>` search
-- [ ] Export conversations to JSON/PDF
-- [ ] Automatic database cleanup
-- [ ] Web API for remote access
-- [ ] Multi-user support
 
 ---
 

@@ -11,11 +11,16 @@ import argparse
 from pathlib import Path
 
 def get_tui_engine_path():
-    """Locate the TUI engine (agentd) used by agentD."""
-    # Try to find agentd in the current environment
+    """Locate the TUI engine (deepagents) used by agentD."""
+    # First: check same bin/ dir as the running Python — works without venv activation
+    same_bin = Path(sys.executable).parent / "deepagents"
+    if same_bin.exists():
+        return str(same_bin)
+
+    # Second: which deepagents (works when venv is activated in PATH)
     try:
         result = subprocess.run(
-            ["which", "agentd"],
+            ["which", "deepagents"],
             capture_output=True,
             text=True,
             check=False
@@ -27,9 +32,9 @@ def get_tui_engine_path():
 
     # Fallback paths
     fallback_paths = [
-        Path.home() / ".venv" / "bin" / "agentd",
-        Path("/opt/agentd/bin/agentd"),
-        Path("/usr/local/bin/agentd"),
+        Path.home() / ".venv" / "bin" / "deepagents",
+        Path("/opt/deepagents/bin/deepagents"),
+        Path("/usr/local/bin/deepagents"),
     ]
 
     for path in fallback_paths:
@@ -91,6 +96,22 @@ def run_non_interactive(task: str, thread_id: str = "default", model: str = "son
         return 1
 
 
+def _get_startup_model() -> str:
+    """Read startup model from ~/.deepagents/config.toml.
+
+    Priority: [models].default > [models].recent > fallback haiku.
+    """
+    import tomllib
+    config_path = Path.home() / ".deepagents" / "config.toml"
+    try:
+        with config_path.open("rb") as f:
+            data = tomllib.load(f)
+        models = data.get("models", {})
+        return models.get("default") or models.get("recent") or "agentd-cli:haiku"
+    except Exception:
+        return "agentd-cli:haiku"
+
+
 def main():
     """Main entry point for AgentD CLI."""
     parser = argparse.ArgumentParser(
@@ -100,8 +121,8 @@ def main():
 
     parser.add_argument(
         "-M", "--model",
-        default="claude-cli",
-        help="Model to use (default: claude-cli)"
+        default=None,
+        help="Model to use (default: agentd-cli:haiku, or last /model selection)"
     )
 
     parser.add_argument(
@@ -153,11 +174,9 @@ def main():
 
     cmd = [tui_engine_path]
 
-    # Add model
-    if args.model != "claude-cli":
-        cmd.extend(["-M", args.model])
-    else:
-        cmd.extend(["-M", "claude-cli"])
+    # Add model — use explicit flag or read persisted preference
+    model = args.model if args.model is not None else _get_startup_model()
+    cmd.extend(["-M", model])
 
     # Add flags (TUI mode with all yes)
     cmd.extend(["-S", "all"])

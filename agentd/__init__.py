@@ -30,6 +30,26 @@ from agentd.auth_store import (
     get_supported_keys,
 )
 
+from agentd.browser_tools import BrowserToolkit, get_browser_status
+from agentd.pentester_skill import PentesterSkill, handle_pentester_skill
+from agentd.research_tools import (
+    ResearchTools,
+    get_research_tools,
+    browse_url,
+    search_web,
+    scrape_content,
+    process_markdown,
+    extract_entities,
+    structure_findings,
+    analyze_patterns,
+    assess_impact,
+    identify_gaps,
+    save_to_memory,
+    create_graph_node,
+    link_nodes,
+    save_skill_insight,
+)
+
 __all__ = [
     "Agent",
     "AgentDModel",
@@ -45,6 +65,25 @@ __all__ = [
     "load_credentials",
     "save_credentials",
     "get_supported_keys",
+    "BrowserToolkit",
+    "get_browser_status",
+    "PentesterSkill",
+    "handle_pentester_skill",
+    "ResearchTools",
+    "get_research_tools",
+    "browse_url",
+    "search_web",
+    "scrape_content",
+    "process_markdown",
+    "extract_entities",
+    "structure_findings",
+    "analyze_patterns",
+    "assess_impact",
+    "identify_gaps",
+    "save_to_memory",
+    "create_graph_node",
+    "link_nodes",
+    "save_skill_insight",
     "__version__",
     "make_checkpointer",
     "make_store",

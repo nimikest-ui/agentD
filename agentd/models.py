@@ -62,32 +62,60 @@ KIMI_MODELS = [
 XIOMIMIMO_PROVIDER = "xiomimimo"
 XIOMIMIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
 XIOMIMIMO_MODELS = [
-    # Latest V2.5 series (April 2026)
     "mimo-v2.5-pro",
     "mimo-v2.5",
-    # V2 series (March 2026)
+    "mimo-v2.5-tts",
+    "mimo-v2.5-tts-voiceclone",
+    "mimo-v2.5-tts-voicedesign",
     "mimo-v2-pro",
     "mimo-v2-omni",
     "mimo-v2-tts",
-    # Open-weight models
     "mimo-v2-flash",
-    "mimo-7b",
 ]
 
 OLLAMA_PROVIDER = "ollama"
 OLLAMA_DEFAULT_MODEL = "llama2"
 OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434"
 OLLAMA_COMMON_MODELS = [
-    "llama2",
-    "llama2:13b",
-    "mistral",
-    "neural-chat",
-    "starling-lm",
-    "dolphin-mixtral",
-    "phi",
-    "neural-chat:7b",
-    "openhermes",
-    "zephyr",
+    "cogito-2.1:671b",
+    "deepseek-v3.1:671b",
+    "deepseek-v3.2",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    "devstral-2:123b",
+    "devstral-small-2:24b",
+    "gemini-3-flash-preview",
+    "gemma3:12b",
+    "gemma3:27b",
+    "gemma3:4b",
+    "gemma4:31b",
+    "glm-4.6",
+    "glm-4.7",
+    "glm-5",
+    "glm-5.1",
+    "gpt-oss:120b",
+    "gpt-oss:20b",
+    "kimi-k2-thinking",
+    "kimi-k2.5",
+    "kimi-k2.6",
+    "kimi-k2:1t",
+    "minimax-m2",
+    "minimax-m2.1",
+    "minimax-m2.5",
+    "minimax-m2.7",
+    "ministral-3:14b",
+    "ministral-3:3b",
+    "ministral-3:8b",
+    "mistral-large-3:675b",
+    "nemotron-3-nano:30b",
+    "nemotron-3-super",
+    "qwen3-coder-next",
+    "qwen3-coder:480b",
+    "qwen3-next:80b",
+    "qwen3-vl:235b",
+    "qwen3-vl:235b-instruct",
+    "qwen3.5:397b",
+    "rnj-1:8b",
 ]
 
 
@@ -136,6 +164,10 @@ class AgentDModel(BaseChatModel):
         if "cli_binary" not in data or not data["cli_binary"]:
             binary = shutil.which("claude") or "/root/.local/bin/claude"
             data["cli_binary"] = binary
+
+        # "claude-cli" is a provider alias, not a real model name — fall back to default
+        if data.get("model") in ("claude-cli", "agentd-cli", ""):
+            data["model"] = AGENTD_CLI_DEFAULT_MODEL
 
         try:
             super().__init__(**data)
@@ -326,8 +358,10 @@ class AgentDModel(BaseChatModel):
         rc = process.wait()
         if rc != 0:
             stderr_text = "".join(stderr_buf).strip()
+            stdout_text = "".join(text_chunks).strip()
+            detail = stderr_text or stdout_text or "(no output)"
             raise RuntimeError(
-                f"Claude CLI exited with code {rc}: {stderr_text or '(no stderr)'}"
+                f"Claude CLI exited with code {rc}: {detail}"
             )
 
         self.last_usage = usage
@@ -347,6 +381,19 @@ class AgentDModel(BaseChatModel):
             return traced(cmd, on_chunk=on_chunk)
         return self._run_cli(cmd, on_chunk=on_chunk)
 
+    def _build_usage_metadata(self) -> Optional[dict]:
+        """Convert CLI usage dict to langchain UsageMetadata format."""
+        if not self.last_usage:
+            return None
+        u = self.last_usage
+        input_tokens = u.get("input_tokens", 0)
+        output_tokens = u.get("output_tokens", 0)
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+        }
+
     def _generate(
         self,
         messages: list[BaseMessage],
@@ -360,7 +407,7 @@ class AgentDModel(BaseChatModel):
         full_text, _ = self._run_cli_traced(cmd)
         ai_message = AIMessage(
             content=full_text,
-            usage_metadata=self.last_usage if self.last_usage else None
+            usage_metadata=self._build_usage_metadata(),
         )
         return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
@@ -384,7 +431,7 @@ class AgentDModel(BaseChatModel):
 
         ai_message = AIMessage(
             content=full_text,
-            usage_metadata=self.last_usage if self.last_usage else None
+            usage_metadata=self._build_usage_metadata(),
         )
         return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
