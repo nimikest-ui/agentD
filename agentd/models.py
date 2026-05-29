@@ -36,7 +36,9 @@ except ImportError:
     traceable = None
 
 AGENTD_CLI_PROVIDER = "agentd-cli"
-AGENTD_CLI_DEFAULT_MODEL = "sonnet"
+# Haiku is the token-frugal first-run default for the Claude (agentd-cli) path.
+# A persisted/explicit selection (e.g. via /model or -M) always overrides this.
+AGENTD_CLI_DEFAULT_MODEL = "haiku"
 
 COPILOT_CLI_PROVIDER = "copilot-cli"
 COPILOT_CLI_DEFAULT_MODEL = "copilot"
@@ -147,6 +149,10 @@ class AgentDModel(BaseChatModel):
     cli_binary: str = ""
     permission_mode: str = "bypassPermissions"
     call_timeout: int = 300
+    # Optional per-call cost ceiling passed to `claude --max-budget-usd`. Off by
+    # default (None) so the main agent loop's behaviour is unchanged; set via the
+    # AGENTD_MAX_BUDGET_USD env var to cap runaway Claude sessions.
+    max_budget_usd: Optional[float] = None
     profile: dict[str, Any] = Field(
         default_factory=lambda: {
             "tool_calling": True,
@@ -154,11 +160,22 @@ class AgentDModel(BaseChatModel):
         }
     )
     last_usage: dict[str, Any] = Field(default_factory=dict)
+    # Claude Code session id from the most recent call, used to `--resume` the
+    # conversation on subsequent turns instead of re-sending the full history.
+    last_session_id: Optional[str] = None
 
     def __init__(self, **data):
         if "cli_binary" not in data or not data["cli_binary"]:
             binary = shutil.which("claude") or "/root/.local/bin/claude"
             data["cli_binary"] = binary
+
+        if data.get("max_budget_usd") is None:
+            _env_budget = os.environ.get("AGENTD_MAX_BUDGET_USD")
+            if _env_budget:
+                try:
+                    data["max_budget_usd"] = float(_env_budget)
+                except ValueError:
+                    pass
 
         # "claude-cli" is a provider alias, not a real model name — fall back to default
         if data.get("model") in ("claude-cli", "agentd-cli", ""):
@@ -252,8 +269,24 @@ class AgentDModel(BaseChatModel):
 
         return system_prompt, user_prompt
 
-    def _build_command(self, system_prompt: str, user_prompt: str) -> list[str]:
-        """Build the claude CLI subprocess command."""
+    def _build_command(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        resume_session_id: Optional[str] = None,
+    ) -> list[str]:
+        """Build the claude CLI subprocess command.
+
+        Token-frugal by design:
+        - ``--tools Bash`` loads only the Bash tool schema (was ``--tools default``,
+          which loaded every tool definition even though ``--allowedTools Bash``
+          made the rest unusable).
+        - ``--resume`` continues the prior Claude Code session instead of
+          re-sending the whole conversation; Claude Code keeps the system prompt
+          and cached context across resume, so ``--append-system-prompt`` is
+          omitted in that case.
+        - ``--max-budget-usd`` caps a runaway session when configured.
+        """
         permission_mode = self.permission_mode
         if permission_mode == "bypassPermissions" and os.geteuid() == 0:
             permission_mode = "dontAsk"
@@ -263,7 +296,7 @@ class AgentDModel(BaseChatModel):
             "--model",
             self.model,
             "--tools",
-            "default",
+            "Bash",
             "--allowedTools",
             "Bash",
             "--permission-mode",
@@ -274,9 +307,15 @@ class AgentDModel(BaseChatModel):
             "--verbose",
             "--include-partial-messages",
         ]
+        if self.max_budget_usd is not None:
+            cmd.extend(["--max-budget-usd", str(self.max_budget_usd)])
         if permission_mode == "bypassPermissions":
             cmd.append("--dangerously-skip-permissions")
-        if system_prompt:
+        if resume_session_id:
+            # Continuing an existing Claude Code session — context (incl. system
+            # prompt) is retained server-side, so don't re-send it.
+            cmd.extend(["--resume", resume_session_id])
+        elif system_prompt:
             cmd.extend(["--append-system-prompt", system_prompt])
         cmd.append(user_prompt)
         return cmd
@@ -398,11 +437,14 @@ class AgentDModel(BaseChatModel):
     ) -> ChatResult:
         """Generate a response (sync)."""
         system_prompt, user_prompt = self._messages_to_prompt(messages)
-        cmd = self._build_command(system_prompt, user_prompt)
-        full_text, _ = self._run_cli_traced(cmd)
+        cmd = self._build_command(system_prompt, user_prompt, kwargs.get("resume_session_id"))
+        full_text, session_id = self._run_cli_traced(cmd)
+        if session_id:
+            self.last_session_id = session_id
         ai_message = AIMessage(
             content=full_text,
             usage_metadata=self._build_usage_metadata(),
+            response_metadata={"session_id": session_id} if session_id else {},
         )
         return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
@@ -419,14 +461,17 @@ class AgentDModel(BaseChatModel):
         completely isolating from the async event loop and blockbuster detection.
         """
         system_prompt, user_prompt = self._messages_to_prompt(messages)
-        cmd = self._build_command(system_prompt, user_prompt)
+        cmd = self._build_command(system_prompt, user_prompt, kwargs.get("resume_session_id"))
 
         # asyncio.to_thread is cleaner than run_in_executor and avoids blockbuster issues
-        full_text, _ = await asyncio.to_thread(self._run_cli_traced, cmd)
+        full_text, session_id = await asyncio.to_thread(self._run_cli_traced, cmd)
+        if session_id:
+            self.last_session_id = session_id
 
         ai_message = AIMessage(
             content=full_text,
             usage_metadata=self._build_usage_metadata(),
+            response_metadata={"session_id": session_id} if session_id else {},
         )
         return ChatResult(generations=[ChatGeneration(message=ai_message)])
 
@@ -439,7 +484,7 @@ class AgentDModel(BaseChatModel):
     ) -> Iterator[ChatGenerationChunk]:
         """Stream response tokens (sync streaming)."""
         system_prompt, user_prompt = self._messages_to_prompt(messages)
-        cmd = self._build_command(system_prompt, user_prompt)
+        cmd = self._build_command(system_prompt, user_prompt, kwargs.get("resume_session_id"))
 
         queue: list[str] = []
         done = threading.Event()
@@ -450,7 +495,9 @@ class AgentDModel(BaseChatModel):
 
         def run() -> None:
             try:
-                self._run_cli_traced(cmd, on_chunk=on_chunk)
+                _, session_id = self._run_cli_traced(cmd, on_chunk=on_chunk)
+                if session_id:
+                    self.last_session_id = session_id
             except BaseException as exc:
                 error_holder.append(exc)
             finally:

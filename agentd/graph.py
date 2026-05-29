@@ -12,9 +12,12 @@ from langgraph.store.base import BaseStore
 class AgentState(MessagesState):
     """Graph state: LangChain message history + thread-scoped memory facts."""
     _thread_memories: list[str]
+    # Claude Code session id for this thread. Set only on the Claude (agentd-cli)
+    # path so subsequent turns `--resume` instead of re-sending the full history.
+    _claude_session_id: str
 
 
-def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
+def _make_llm_node(model_name: str) -> Callable[[AgentState], dict]:
     """Return the single LLM node callable for the graph.
 
     Uses the proper model factory to instantiate the correct model class
@@ -22,7 +25,7 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
     """
     from agentd.core import Agent
     from agentd.memory import get_memories_prompt
-    from langchain_core.messages import SystemMessage
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     # Use the Agent factory to create the correct model type
     try:
@@ -33,7 +36,12 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
             f"Check that the model name is valid and required credentials are set."
         )
 
-    async def llm_node(state: AgentState) -> dict[str, list]:
+    # Claude (agentd-cli) is the only provider that supports `--resume` session
+    # reuse. Every other provider (Kimi/Xiaomi/Ollama/Copilot) keeps the original
+    # ainvoke(messages) path untouched.
+    is_claude = getattr(model, "_llm_type", "") == "agentd-cli"
+
+    async def llm_node(state: AgentState) -> dict:
         try:
             thread_memories = state.get("_thread_memories", [])
             messages = list(state["messages"])
@@ -47,8 +55,27 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
                         content=f"{memories_prompt}\n\n{messages[0].content}"
                     )
 
-            response = await model.ainvoke(messages)
-            return {"messages": [response]}
+            session_id = state.get("_claude_session_id") if is_claude else None
+
+            if is_claude and session_id:
+                # Resume the existing Claude Code session: send only the latest
+                # human turn — prior context is retained server-side, so we avoid
+                # re-sending (and re-paying for) the whole conversation.
+                last_human = next(
+                    (m for m in reversed(messages) if isinstance(m, HumanMessage)),
+                    None,
+                )
+                turn = [last_human] if last_human is not None else messages
+                response = await model.ainvoke(turn, resume_session_id=session_id)
+            else:
+                response = await model.ainvoke(messages)
+
+            out: dict = {"messages": [response]}
+            if is_claude:
+                new_sid = (getattr(response, "response_metadata", None) or {}).get("session_id")
+                if new_sid:
+                    out["_claude_session_id"] = new_sid
+            return out
         except RuntimeError as e:
             # Re-raise with better context for credential/API errors
             error_msg = str(e)
@@ -75,7 +102,7 @@ def _make_llm_node(model_name: str) -> Callable[[AgentState], dict[str, list]]:
 
 
 def build_graph(
-    model_name: str = "sonnet",
+    model_name: str = "haiku",
     checkpointer: Optional[BaseCheckpointSaver] = None,
     store: Optional[BaseStore] = None,
 ):

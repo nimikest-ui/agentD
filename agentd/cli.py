@@ -45,18 +45,21 @@ def get_tui_engine_path():
         "AgentD TUI engine not found. Install with: pip install -e ."
     )
 
-def run_non_interactive(task: str, thread_id: str = "default", model: str = "sonnet") -> int:
+def run_non_interactive(task: str, thread_id: str = "default", model: str | None = None) -> int:
     """Run a task through Agent.invoke() with thread persistence.
 
     Args:
         task: The task text to run.
         thread_id: Thread ID for checkpoint isolation.
-        model: Model name.
+        model: Model name. When None, resolves the persisted selection
+            (``[models].default``/``recent``) and falls back to Haiku.
 
     Returns:
         Exit code (0 = success).
     """
     from agentd.core import Agent
+    if model is None:
+        model = _get_startup_model()
     try:
         agent = Agent(model=model)
         result = agent.invoke(task, thread_id=thread_id)
@@ -129,7 +132,7 @@ def main():
     # Handle non-interactive mode
     if args.non_interactive:
         thread_id = args.thread_id or "default"
-        model = args.model or "sonnet"
+        model = args.model or _get_startup_model()
         sys.exit(run_non_interactive(
             args.non_interactive,
             thread_id=thread_id,
