@@ -26,8 +26,17 @@ else
     echo "!! Tip: install 'pkg install termux-api' for a wakelock, OR keep the"
     echo "   screen on / phone plugged in so Android doesn't kill the build."
 fi
-export CARGO_BUILD_JOBS=1
-export MAKEFLAGS="-j1"
+# Pick build parallelism from available RAM: each parallel Rust/C++ compile of a
+# big crate (pydantic-core) can need ~1.5-2 GB. Too many jobs => OOM kill.
+_mem_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
+_mem_gb=$(( _mem_kb / 1024 / 1024 ))
+if   [ "$_mem_gb" -ge 8 ]; then _jobs=4
+elif [ "$_mem_gb" -ge 5 ]; then _jobs=2
+else _jobs=1
+fi
+echo ">> Detected ~${_mem_gb}GB RAM -> building with ${_jobs} job(s)"
+export CARGO_BUILD_JOBS="$_jobs"
+export MAKEFLAGS="-j${_jobs}"
 
 # Defensive: if a transitive dep pulls grpcio, build it against system libs
 # rather than failing on Termux.

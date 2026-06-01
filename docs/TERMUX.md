@@ -39,7 +39,8 @@ installs the Claude CLI via npm.
 > bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
 > Android suspending Termux in the background, and out-of-memory during parallel
 > compiles. The script mitigates both (acquires a `termux-wake-lock` if available,
-> caps builds to `CARGO_BUILD_JOBS=1`/`MAKEFLAGS=-j1`). **Keep the screen on and
+> scales build parallelism to your RAM — 1 job under 5 GB, 2 jobs at 5–8 GB, 4
+above). **Keep the screen on and
 > the phone plugged in.** If it stops abruptly with no error, it was killed — just
 > re-run; `pip` resumes from its cache. For a reliable wakelock first run
 > `pkg install termux-api`.
