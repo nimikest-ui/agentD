@@ -23,40 +23,62 @@ classifiers = [
 
 dependencies = [
     # Core agent framework
-    "langchain>=1.0.0",
-    "langgraph>=1.1.0",
-    "langchain-anthropic>=0.1.0",
-    "pydantic>=2.0",
-    "httpx>=0.24.0",
+    "langchain>=1.3.0,<2.0.0",
+    "langgraph>=1.2.0,<2.0.0",
+    "langchain-anthropic>=1.4.0,<2.0.0",
+    "pydantic>=2.12.0,<3.0.0",
+    "httpx>=0.28.0,<1.0.0",
     # TUI engine
-    "deepagents>=0.6.1",
-    "deepagents-cli>=0.0.59",
-    # LLM providers
-    "anthropic>=0.52.0",
-    "openai>=1.0.0",
-    "ollama>=0.6.0",
-    # Browser automation
-    "browser-use>=0.12.0",
-    "playwright>=1.50.0",
-    # Research tools
-    "firecrawl-py>=0.0.1",
-    "tavily-python>=0.3.0",
+    "deepagents>=0.6.1,<0.7.0",
+    "deepagents-cli>=0.0.59,<0.1.0",
+    # LLM providers (HTTP + claude/copilot CLI — all Termux-compatible)
+    "anthropic>=0.102.0,<1.0.0",
+    "openai>=2.30.0,<3.0.0",
+    "ollama>=0.6.0,<1.0.0",
     # Storage & persistence
-    "aiosqlite>=0.19.0",
-    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.22.0,<1.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+    # SQLite checkpointer (persistence.py imports langgraph.checkpoint.sqlite).
+    # Not pulled transitively by the lean core, so declare it explicitly.
+    "langgraph-checkpoint-sqlite>=4.1.0,<5.0.0",
     # Observability
-    "langsmith>=0.1.0",
+    "langsmith>=0.8.0,<1.0.0",
     # Utilities
-    "textual>=0.20.0",
-    "requests>=2.32.0",
+    "textual>=8.0.0,<9.0.0",
+    "requests>=2.32.0,<3.0.0",
+    # PyYAML (transitive via langchain-core) <6.0.2 cannot build against Cython 3:
+    # the sdist's metadata hook crashes with "'build_ext' has no attribute
+    # cython_sources", which is FATAL to pip's resolver. Termux has no PyYAML
+    # wheel so it builds from sdist — floor at the fixed release so the resolver
+    # never touches 6.0/6.0.1.
+    "PyYAML>=6.0.2,<7.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.23",
-    "black>=23.0",
-    "ruff>=0.1.0",
+    "pytest>=9.0,<10.0",
+    "pytest-asyncio>=1.3,<2.0",
+    "black>=24.0,<25.0",
+    "ruff>=0.1.0,<1.0.0",
+]
+# Browser automation. NOT installable/usable on Termux: Playwright's bundled
+# Chromium is a glibc ELF and won't run on Android's bionic libc. Desktop only.
+browser = [
+    "browser-use>=0.12.0,<1.0.0",
+    "playwright>=1.59.0,<2.0.0",
+]
+# HTTP research tools (firecrawl/tavily). Pure HTTP — work on Termux too, but
+# kept optional so the lean core install stays small.
+research = [
+    "firecrawl-py>=4.0.0,<5.0.0",
+    "tavily-python>=0.7.0,<1.0.0",
+]
+# Full desktop (glibc) experience: browser automation + research tools.
+full = [
+    "browser-use>=0.12.0,<1.0.0",
+    "playwright>=1.59.0,<2.0.0",
+    "firecrawl-py>=4.0.0,<5.0.0",
+    "tavily-python>=0.7.0,<1.0.0",
 ]
 
 [project.scripts]
