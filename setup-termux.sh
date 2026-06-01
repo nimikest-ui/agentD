@@ -38,16 +38,19 @@ echo ">> Detected ~${_mem_gb}GB RAM -> building with ${_jobs} job(s)"
 export CARGO_BUILD_JOBS="$_jobs"
 export MAKEFLAGS="-j${_jobs}"
 
-# Defensive: if a transitive dep pulls grpcio, build it against system libs
-# rather than failing on Termux.
+# grpcio IS pulled transitively (the deepagents-cli / langgraph-api gRPC server
+# stack). Build it against Termux's system libs instead of its bundled copies:
+# the bundled c-ares (third_party/cares/.../ares_getenv.c) fails to compile on
+# bionic, so link the system 'c-ares' package (installed below) instead.
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
 export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
+export GRPC_PYTHON_BUILD_SYSTEM_CARES=1
 
 echo ">> Installing Termux system packages + build toolchain"
 pkg update -y && pkg upgrade -y
 pkg install -y \
     python nodejs-lts rust binutils clang make \
-    openssl libxml2 libxslt libjpeg-turbo zlib pkg-config git
+    openssl libxml2 libxslt libjpeg-turbo zlib c-ares pkg-config git
 
 # Prefer Termux-prebuilt wheels for heavy native deps (best-effort; names vary
 # across Termux versions, so don't fail the whole install if absent).

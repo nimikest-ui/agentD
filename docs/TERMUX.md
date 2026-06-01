@@ -35,8 +35,8 @@ a venv, runs `pip install -e .` (lean core, no browser extra), and optionally
 installs the Claude CLI via npm.
 
 > **The install compiles several Rust/C packages from source** (pydantic-core,
-> jiter, tiktoken, …) because PyPI's prebuilt wheels are glibc and Termux needs
-> bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
+> jiter, tiktoken, and `grpcio` — the heaviest) because PyPI's prebuilt wheels are
+> glibc and Termux needs bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
 > Android suspending Termux in the background, and out-of-memory during parallel
 > compiles. The script mitigates both (acquires a `termux-wake-lock` if available,
 > scales build parallelism to your RAM — 1 job under 5 GB, 2 jobs at 5–8 GB, 4
@@ -48,8 +48,10 @@ above). **Keep the screen on and
 ### Manual install
 
 ```bash
-pkg install python nodejs-lts rust binutils clang make openssl libxml2 libxslt libjpeg-turbo zlib
+pkg install python nodejs-lts rust binutils clang make openssl libxml2 libxslt libjpeg-turbo zlib c-ares pkg-config
 python -m venv venv && source venv/bin/activate
+# Link grpcio against system libs (its bundled c-ares won't compile on bionic):
+export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1 GRPC_PYTHON_BUILD_SYSTEM_CARES=1
 pip install -e .                      # lean core
 # optional pinned alternative: pip install -r requirements-termux.txt
 ```
@@ -92,9 +94,13 @@ also be set interactively with `/auth` inside the TUI.
   to `browser_task()` / the `browser_run` MCP tool return an "unavailable"
   message. Everything else is unaffected because the core agent graph never
   imports the browser stack (it's lazy/guarded).
-- **`grpcio`** is not in the lean install (no provider here needs it). If a future
-  dependency pulls it and the build fails, set
-  `GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1` before
-  `pip install` (the setup script already exports these).
+- **`grpcio` builds from source** and is the heaviest native compile. No *provider*
+  needs it, but it's a hard transitive dependency of `langgraph-api` (the LangGraph
+  dev server behind `deepagents-cli`), so `pip install -e .` must build it. Its
+  bundled c-ares (`third_party/cares/.../ares_getenv.c`) fails to compile on bionic,
+  so the setup script installs the system **`c-ares`** package and exports
+  `GRPC_PYTHON_BUILD_SYSTEM_CARES=1` (plus `…_OPENSSL=1`/`…_ZLIB=1`) to link system
+  libs instead of compiling the bundled copies. If you build manually and grpcio
+  fails on c-ares, run `pkg install c-ares` and set those exports first.
 - **On-device LLMs (local Ollama)** are impractical on phone RAM; use the HTTP
   providers (mimo/kimi) or remote Ollama Cloud instead.
