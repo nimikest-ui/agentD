@@ -16,7 +16,7 @@ dependency set Termux-installable.
 | Xiaomi/mimo provider | ✅ | Pure HTTP (`httpx`). Recommended primary. |
 | Kimi provider | ✅ | Pure HTTP. |
 | Claude CLI provider (`agentd-cli`) | ✅ | Shells out to the Node `claude` binary (npm-installed). Gives the LLM a Bash tool. |
-| Session persistence / memory | ✅ | SQLite checkpointer under `~/.agentd/`. |
+| Session persistence / memory | ✅ | SQLite checkpointer under `~/.agentd/` (installed `--no-deps`, see [Limitations](#limitations)). Falls back to in-memory if absent. |
 | Browser automation (`browser_task`) | ❌ | Playwright's Chromium is a glibc ELF; can't run on bionic libc. Returns a friendly "unavailable" message. |
 | Firecrawl / Tavily research | ➖ | Pure HTTP and would work, but kept out of the lean install. Add with `pip install -e '.[research]'`. |
 
@@ -53,6 +53,9 @@ python -m venv venv && source venv/bin/activate
 # Link grpcio against system libs (its bundled c-ares won't compile on bionic):
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1 GRPC_PYTHON_BUILD_SYSTEM_CARES=1
 pip install -e .                      # lean core
+# Persistent SQLite checkpointing — install WITHOUT deps to skip the
+# Android-incompatible sqlite-vec (the checkpointer never uses it):
+pip install --no-deps 'langgraph-checkpoint-sqlite>=3.1.0'
 # optional pinned alternative: pip install -r requirements-termux.txt
 ```
 
@@ -102,5 +105,15 @@ also be set interactively with `/auth` inside the TUI.
   `GRPC_PYTHON_BUILD_SYSTEM_CARES=1` (plus `…_OPENSSL=1`/`…_ZLIB=1`) to link system
   libs instead of compiling the bundled copies. If you build manually and grpcio
   fails on c-ares, run `pkg install c-ares` and set those exports first.
+- **SQLite checkpointer installs `--no-deps`.** `langgraph-checkpoint-sqlite`
+  hard-requires `sqlite-vec` (a SQLite extension for its *vector store*), which
+  ships wheels only — there's no Android/bionic build and no sdist — so a normal
+  `pip install` of it can't resolve and makes the whole lean install fail
+  (`No matching distribution found for sqlite-vec` / `resolution-too-deep`). The
+  `SqliteSaver` checkpointer agentD actually uses never imports `sqlite-vec`, so
+  the setup script installs the package with `pip install --no-deps`. The vector
+  store is unavailable (agentD uses an in-memory store anyway). If you skip this
+  step, `persistence.py` automatically falls back to an in-memory checkpointer —
+  the agent runs fine, but sessions won't persist across restarts.
 - **On-device LLMs (local Ollama)** are impractical on phone RAM; use the HTTP
   providers (mimo/kimi) or remote Ollama Cloud instead.

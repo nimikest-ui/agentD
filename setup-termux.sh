@@ -68,6 +68,15 @@ pip install --upgrade pip wheel setuptools
 echo ">> Installing agentD (lean core — no browser extra)"
 pip install -e .
 
+# Restore persistent SQLite checkpointing. langgraph-checkpoint-sqlite is kept
+# out of the resolved deps because it hard-requires `sqlite-vec` (its vector
+# store), which has no Android/bionic wheel. The SqliteSaver checkpointer we use
+# never imports sqlite-vec, so install the package WITHOUT its deps. If this is
+# skipped, agentD still runs — it just falls back to in-memory checkpointing.
+echo ">> Installing SQLite checkpointer (no deps — skips Android-incompatible sqlite-vec)"
+pip install --no-deps 'langgraph-checkpoint-sqlite>=3.1.0' || \
+    echo "   (checkpointer install failed — agentD will use in-memory checkpointing)"
+
 # Optional: the Claude CLI provider (agentd-cli) shells out to the Node-based
 # `claude` binary. Install it if Node is present; harmless to skip.
 if command -v npm >/dev/null 2>&1; then

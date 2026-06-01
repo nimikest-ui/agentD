@@ -1,9 +1,12 @@
 # Lean pinned dependency set for Termux (Android / bionic libc).
 # Generated from requirements.txt minus the browser stack (browser-use,
 # playwright, cdp-use, bubus, pyee, screeninfo) and the unused provider SDKs
-# the source never imports (gemini/google-*, groq, openrouter). Note: grpcio is
-# NOT pinned here but is still pulled transitively via langgraph-api and built
-# from source on Termux (see setup-termux.sh / docs/TERMUX.md for the c-ares fix).
+# the source never imports (gemini/google-*, groq, openrouter). Also dropped:
+# sqlite-vec and langgraph-checkpoint-sqlite (no Android wheel — installed
+# separately with --no-deps; see the langgraph-checkpoint note below). Note:
+# grpcio is NOT pinned here but is still pulled transitively via langgraph-api
+# and built from source on Termux (see setup-termux.sh / docs/TERMUX.md for the
+# c-ares fix).
 #
 # PREFERRED install path is `pip install -e .` (pip-resolved lean core).
 # Use this file only when you want exact pinned reproducibility.
@@ -67,7 +70,11 @@ langchain-protocol==0.0.15
 langgraph==1.2.0
 langgraph-api==0.8.7
 langgraph-checkpoint==4.1.0
-langgraph-checkpoint-sqlite==3.1.0
+# langgraph-checkpoint-sqlite is NOT pinned here: it hard-requires sqlite-vec
+# (no Android/bionic wheel). For persistent SQLite checkpointing install it
+# separately and skip the vector-store dep:
+#   pip install --no-deps 'langgraph-checkpoint-sqlite>=3.1.0'
+# Without it, agentD falls back to in-memory checkpointing.
 langgraph-cli==0.4.26
 langgraph-prebuilt==1.1.0
 langgraph-runtime-inmem==0.28.1
@@ -137,7 +144,6 @@ setuptools==82.0.1
 six==1.17.0
 sniffio==1.3.1
 soupsieve==2.8.3
-sqlite-vec==0.1.9
 sse-starlette==3.3.4
 starlette==1.0.0
 structlog==25.5.0
