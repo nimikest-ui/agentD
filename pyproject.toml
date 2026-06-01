@@ -38,6 +38,9 @@ dependencies = [
     # Storage & persistence
     "aiosqlite>=0.19.0",
     "sqlalchemy>=2.0.0",
+    # SQLite checkpointer (persistence.py imports langgraph.checkpoint.sqlite).
+    # Not pulled transitively by the lean core, so declare it explicitly.
+    "langgraph-checkpoint-sqlite>=2.0.0",
     # Observability
     "langsmith>=0.1.0",
     # Utilities
