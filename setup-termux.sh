@@ -21,7 +21,7 @@ fi
 #   1) Android suspending/killing Termux in the background -> hold a wakelock.
 #   2) Out-of-memory during parallel Rust/C++ compiles -> cap parallelism to 1.
 if command -v termux-wake-lock >/dev/null 2>&1; then
-    termux-wake-lock && echo ">> Wakelock acquired (build won't be killed in background)"
+    termux-wake-lock && echo ">> Wakelock acquired (build won't be killed in background)" || true
 else
     echo "!! Tip: install 'pkg install termux-api' for a wakelock, OR keep the"
     echo "   screen on / phone plugged in so Android doesn't kill the build."
@@ -47,7 +47,9 @@ export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
 export GRPC_PYTHON_BUILD_SYSTEM_CARES=1
 
 echo ">> Installing Termux system packages + build toolchain"
-pkg update -y && pkg upgrade -y
+# 'update' must succeed (needed to resolve installs); 'upgrade' is best-effort —
+# a mid-upgrade hiccup on a phone shouldn't abort the whole setup.
+pkg update -y && { pkg upgrade -y || echo "   (pkg upgrade reported issues; continuing)"; }
 pkg install -y \
     python nodejs-lts rust binutils clang make \
     openssl libxml2 libxslt libjpeg-turbo zlib c-ares pkg-config git

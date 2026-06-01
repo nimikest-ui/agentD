@@ -1,7 +1,9 @@
 # Lean pinned dependency set for Termux (Android / bionic libc).
 # Generated from requirements.txt minus the browser stack (browser-use,
 # playwright, cdp-use, bubus, pyee, screeninfo) and the unused provider SDKs
-# the source never imports (gemini/google-*, grpcio*, groq, openrouter).
+# the source never imports (gemini/google-*, groq, openrouter). Note: grpcio is
+# NOT pinned here but is still pulled transitively via langgraph-api and built
+# from source on Termux (see setup-termux.sh / docs/TERMUX.md for the c-ares fix).
 #
 # PREFERRED install path is `pip install -e .` (pip-resolved lean core).
 # Use this file only when you want exact pinned reproducibility.
