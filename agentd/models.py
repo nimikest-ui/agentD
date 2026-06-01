@@ -166,7 +166,7 @@ class AgentDModel(BaseChatModel):
 
     def __init__(self, **data):
         if "cli_binary" not in data or not data["cli_binary"]:
-            binary = shutil.which("claude") or "/root/.local/bin/claude"
+            binary = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
             data["cli_binary"] = binary
 
         if data.get("max_budget_usd") is None:
@@ -288,7 +288,10 @@ class AgentDModel(BaseChatModel):
         - ``--max-budget-usd`` caps a runaway session when configured.
         """
         permission_mode = self.permission_mode
-        if permission_mode == "bypassPermissions" and os.geteuid() == 0:
+        # `geteuid` exists on bionic (Termux) and glibc; guard for platforms
+        # (e.g. Windows) that lack it. Termux apps run as a non-zero uid, so the
+        # root-only downgrade simply won't trigger there.
+        if permission_mode == "bypassPermissions" and getattr(os, "geteuid", lambda: -1)() == 0:
             permission_mode = "dontAsk"
 
         cmd = [
@@ -542,12 +545,12 @@ class CopilotModel(AgentDModel):
             candidates = [
                 shutil.which("copilot"),
                 shutil.which("copilot-cli"),
+                os.path.expanduser("~/.local/bin/copilot"),
+                os.path.expanduser("~/.local/share/pipx/venvs/deepagents/bin/copilot"),
                 "/usr/local/bin/copilot",
-                "/root/.local/bin/copilot",
-                "/root/.local/share/pipx/venvs/deepagents/bin/copilot",
                 "/usr/bin/copilot",
             ]
-            binary = next((p for p in candidates if p), "/usr/bin/copilot")
+            binary = next((p for p in candidates if p), "copilot")
             data["cli_binary"] = binary
 
         try:
