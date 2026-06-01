@@ -34,6 +34,16 @@ bash setup-termux.sh
 a venv, runs `pip install -e .` (lean core, no browser extra), and optionally
 installs the Claude CLI via npm.
 
+> **The install compiles several Rust/C packages from source** (pydantic-core,
+> jiter, tiktoken, …) because PyPI's prebuilt wheels are glibc and Termux needs
+> bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
+> Android suspending Termux in the background, and out-of-memory during parallel
+> compiles. The script mitigates both (acquires a `termux-wake-lock` if available,
+> caps builds to `CARGO_BUILD_JOBS=1`/`MAKEFLAGS=-j1`). **Keep the screen on and
+> the phone plugged in.** If it stops abruptly with no error, it was killed — just
+> re-run; `pip` resumes from its cache. For a reliable wakelock first run
+> `pkg install termux-api`.
+
 ### Manual install
 
 ```bash

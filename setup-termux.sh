@@ -16,6 +16,19 @@ if [ -z "${PREFIX:-}" ] || ! command -v pkg >/dev/null 2>&1; then
     exit 1
 fi
 
+# Several deps (pydantic-core, jiter, tiktoken, ...) have no Termux/bionic wheels
+# on PyPI and must compile from source. Two things kill those builds on a phone:
+#   1) Android suspending/killing Termux in the background -> hold a wakelock.
+#   2) Out-of-memory during parallel Rust/C++ compiles -> cap parallelism to 1.
+if command -v termux-wake-lock >/dev/null 2>&1; then
+    termux-wake-lock && echo ">> Wakelock acquired (build won't be killed in background)"
+else
+    echo "!! Tip: install 'pkg install termux-api' for a wakelock, OR keep the"
+    echo "   screen on / phone plugged in so Android doesn't kill the build."
+fi
+export CARGO_BUILD_JOBS=1
+export MAKEFLAGS="-j1"
+
 # Defensive: if a transitive dep pulls grpcio, build it against system libs
 # rather than failing on Termux.
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
@@ -59,6 +72,9 @@ assert status["browser_use"] is False, "browser_use unexpectedly present on Term
 print("   import agentd: OK   browser_use:", status["browser_use"])
 PY
 D --version || true
+
+# Release the wakelock now that the heavy build is done.
+command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock || true
 
 cat <<'EOF'
 
