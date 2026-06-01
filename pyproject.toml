@@ -30,7 +30,12 @@ dependencies = [
     "httpx>=0.24.0",
     # TUI engine
     "deepagents>=0.6.1",
-    "deepagents-cli>=0.0.59",
+    # deepagents-cli <0.1.0 (0.0.55–0.0.59) hard-requires langgraph-checkpoint-sqlite,
+    # which pulls sqlite-vec — a wheels-only extension with no Android/bionic build,
+    # making the Termux install unresolvable (and triggering pip resolution-too-deep
+    # as it backtracks). 0.1.2 dropped that requirement, so floor here to guarantee
+    # the resolver never selects a sqlite-vec-bound version. Do NOT add a <0.x ceiling.
+    "deepagents-cli>=0.1.2",
     # LLM providers (HTTP + claude/copilot CLI — all Termux-compatible)
     "anthropic>=0.52.0",
     "openai>=1.0.0",
