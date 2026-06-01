@@ -35,8 +35,9 @@ a venv, runs `pip install -e .` (lean core, no browser extra), and optionally
 installs the Claude CLI via npm.
 
 > **The install compiles several Rust/C packages from source** (pydantic-core,
-> jiter, tiktoken, and `grpcio` — the heaviest) because PyPI's prebuilt wheels are
-> glibc and Termux needs bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
+> jiter, cryptography, and the two heaviest — `grpcio` and `grpcio-tools`, both a
+> full gRPC/C++ build, required by langgraph-api) because PyPI's prebuilt wheels
+> are glibc and Termux needs bionic builds. This takes **20–40 min** on a phone. Two things commonly kill it:
 > Android suspending Termux in the background, and out-of-memory during parallel
 > compiles. The script mitigates both (acquires a `termux-wake-lock` if available,
 > scales build parallelism to your RAM — 1 job under 5 GB, 2 jobs at 5–8 GB, 4
