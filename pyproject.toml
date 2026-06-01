@@ -46,6 +46,12 @@ dependencies = [
     # Utilities
     "textual>=0.20.0",
     "requests>=2.32.0",
+    # PyYAML (transitive via langchain-core) <6.0.2 cannot build against Cython 3:
+    # the sdist's metadata hook crashes with "'build_ext' has no attribute
+    # cython_sources", which is FATAL to pip's resolver. Termux has no PyYAML
+    # wheel so it builds from sdist — floor at the fixed release so the resolver
+    # never touches 6.0/6.0.1.
+    "PyYAML>=6.0.2",
 ]
 
 [project.optional-dependencies]
