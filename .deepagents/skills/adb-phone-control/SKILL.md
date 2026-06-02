@@ -27,43 +27,44 @@ user it's out of scope):
 - ❌ WiFi/Bluetooth **monitor mode / packet injection** (aircrack, bettercap, hcitool)
 - ❌ Reading other apps' private data, remounting `/system`, raw HCI access
 
-## 0. Connection check — ALWAYS do this first
+## 0. Connection check & self-heal — ALWAYS do this first
+
+This phone runs adb over **loopback / classic tcpip** (`127.0.0.1:5555`) — **no WiFi,
+no pairing**. Start every session by (re)attaching; it's a no-op if already connected
+and silently re-attaches if the adb server was restarted:
 
 ```bash
-adb devices
+adb connect 127.0.0.1:5555
+adb devices            # expect: 127.0.0.1:5555  device
 ```
 
-Look for a line ending in `device` (not `offline` / `unauthorized` / empty).
+- Works with **WiFi off** (loopback is internal to the phone) and survives adb-server
+  restarts — survives everything **except a phone reboot**.
+- **Stray `emulator-5554` also listed:** target the phone explicitly,
+  `adb -s 127.0.0.1:5555 shell …`.
+- **`adb connect` fails** (`cannot connect` / `Connection refused`): the phone was
+  **rebooted** (classic tcpip resets on reboot; persisting it needs root). Re-arm once
+  over USB — a human step, so **stop and tell the user**, don't loop:
+  > "adb channel dropped (looks like a phone reboot). Re-arm once: plug the phone into a
+  > PC with USB debugging on, run `adb tcpip 5555`, then I'll reconnect — no WiFi needed."
+- **`unauthorized`:** the phone is waiting for the on-screen **"Allow USB debugging?"**
+  tap — ask the user to tap Allow (+ "Always allow") once.
 
-- **No device / `offline`:** reconnect to the IP:PORT shown on the phone's
-  *Wireless debugging* screen: `adb connect <ip>:<port>` (then re-run `adb devices`).
-- **`unauthorized`:** the phone needs to re-accept this host — re-pair (below).
-- **Pairing (one-time, needs a human):** `adb pair <ip>:<pairport>` then enter the
-  6-digit code from *Wireless debugging → Pair device with pairing code*. **You
-  cannot supply this code yourself — ask the user for it once and stop; do not loop.**
-- **If `adb pair` fails** with `protocol fault (couldn't read status message): Success`
-  (known broken on some devices, notably **Samsung/OneUI** — the device's
-  wireless-debugging *pairing* service is the problem, not adb): use the **one-time USB
-  bootstrap** instead. From any computer with adb, USB-plug the phone (USB debugging on),
-  run `adb tcpip 5555`, unplug — then attach over the network with
-  `adb connect <phone-ip>:5555` (or `adb connect 127.0.0.1:5555` when adb runs on the
-  phone itself). That's classic tcpip — no TLS, no pairing. Re-run the USB `adb tcpip
-  5555` after a device reboot. The first network connect triggers an on-screen
-  "Allow USB debugging?" prompt — the user taps Allow once.
-- **Multiple devices listed** (e.g. a stray `emulator-5554`): target the phone
-  explicitly with `adb -s <serial> shell …`, e.g. `adb -s 127.0.0.1:5555 shell …`.
+**This uses classic `adb tcpip`, NOT the Android-11 "Wireless debugging" toggle.** That
+button can stay **OFF** (its pairing is broken on Samsung/OneUI anyway); only "**USB
+debugging**" must stay **ON** — it's what keeps adbd alive (verified live:
+`adb_wifi_enabled=0`, `adb_enabled=1`, channel up).
 
-## ⚠️ Self-disconnect safety (read before toggling)
+## ⚠️ Before toggling WiFi / airplane
 
-If ADB is reaching the phone **over WiFi** (it is, with wireless debugging), then
-**disabling WiFi — or enabling airplane mode — cuts the ADB link itself** and you
-lose all control until the user re-enables it on the device. Before any
-`svc wifi disable`, airplane-mode-on, or a WiFi *switch* to another network:
+On **this** phone adb runs over **loopback** (`127.0.0.1:5555`), so disabling WiFi or
+enabling airplane mode does **NOT** cut the adb link — you keep control either way.
+(Only if you were attached over a WiFi IP — `adb connect <wifi-ip>:5555` — would WiFi-off
+drop the link; in that case confirm first.)
 
-1. State plainly that it will drop your connection, and
-2. **Get explicit user confirmation first.** Never do it unprompted.
-
-Toggling **Bluetooth** or **mobile data** is safe (doesn't affect the WiFi transport).
+Still: turning WiFi/data off changes the **user's** connectivity. Before `svc wifi
+disable`, `svc data disable`, or airplane-on, briefly confirm if they're actively using
+it. Turning radios back **on** is always safe.
 
 ## 1. WiFi
 
@@ -72,7 +73,7 @@ Toggling **Bluetooth** or **mobile data** is safe (doesn't affect the WiFi trans
 adb shell settings get global wifi_on
 adb shell cmd wifi status                      # Android 12+, richer status
 
-# Turn on  (safe).  Turn off = SEE self-disconnect warning above.
+# Turn on (safe). Turn off won't drop adb (loopback) but cuts the user's net — confirm.
 adb shell svc wifi enable
 adb shell svc wifi disable
 
@@ -109,7 +110,7 @@ devices. Don't promise live discovery scans.
 adb shell svc data enable                       # mobile data on/off (safe)
 adb shell svc data disable
 
-# Airplane mode — enabling it drops WiFi too: SEE self-disconnect warning.
+# Airplane mode — drops WiFi/data, but adb survives on loopback; confirm with user first.
 adb shell cmd connectivity airplane-mode enable     # Android 11+
 adb shell cmd connectivity airplane-mode disable
 
@@ -127,9 +128,10 @@ adb shell input keyevent KEYCODE_HOME           # or KEYCODE_BACK, KEYCODE_POWER
 
 ## Rules of engagement
 
-- **Connection check first**, every session. Don't issue control commands blind.
-- **Confirm before any action that drops the ADB-over-WiFi link** (WiFi off, airplane
-  on, switching WiFi networks). Bluetooth/mobile-data toggles don't need this.
+- **Connection check first**, every session: `adb connect 127.0.0.1:5555` (self-heal),
+  then `adb devices`. Don't issue control commands blind.
+- **adb is on loopback** — WiFi/airplane toggles don't cut it. Still confirm before
+  `svc wifi disable` / airplane-on, since it disrupts the user's own connectivity.
 - **Verify each toggle** with its matching status command; report the before/after.
 - Use **non-interactive flags and bounded output** (`grep -m`, `head`) — never dump
   full `dumpsys`.
@@ -139,5 +141,6 @@ adb shell input keyevent KEYCODE_HOME           # or KEYCODE_BACK, KEYCODE_POWER
   `settings put global airplane_mode_on 1 && am broadcast -a android.intent.action.AIRPLANE_MODE`),
   and report the exact command + output rather than blind-retrying.
 - On `device offline` / `unauthorized`: `adb disconnect` then `adb connect
-  <ip>:<port>` **once**; if it still fails, report and ask the user to re-check
-  Wireless debugging / re-pair.
+  127.0.0.1:5555` **once** (tap "Allow USB debugging" if prompted). If `adb connect`
+  itself refuses, the phone likely rebooted — ask for the one-time USB `adb tcpip 5555`
+  re-arm (see §0). Don't loop.
