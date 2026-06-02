@@ -136,9 +136,10 @@ class BrowserToolkit:
         """Execute task using Browser-Use with the currently configured TUI model."""
         if not self.browser_available:
             return (
-                "Error: browser_use not available. "
-                "Run: /root/agentD/venv/bin/pip install browser-use "
-                "&& /root/agentD/venv/bin/playwright install chromium"
+                "Error: browser automation is unavailable. "
+                "It is not supported on Termux/Android (Playwright's Chromium "
+                "needs glibc). On a glibc host, install the optional extra: "
+                "pip install -e '.[browser]' && playwright install chromium"
             )
         try:
             from browser_use import Agent as BrowserAgent
@@ -190,7 +191,7 @@ def install_instructions() -> str:
 📚 Documentation:
    • Browser-Use: https://github.com/browser-use/browser-use
    • Firecrawl: https://firecrawl.dev
-   • AgentD: /root/agentD/README.md
+   • AgentD: see README.md (browser tools are desktop/glibc only)
 """
 
 

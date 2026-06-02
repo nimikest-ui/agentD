@@ -99,7 +99,7 @@ class Agent:
 
     def __init__(
         self,
-        model: str = "sonnet",
+        model: str = "haiku",
         provider: Optional[str] = None,
         db_path: str | Path | None = None,
         checkpointer: Optional[BaseCheckpointSaver] = None,

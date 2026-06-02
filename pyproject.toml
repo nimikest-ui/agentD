@@ -28,27 +28,41 @@ dependencies = [
     "langchain-anthropic>=0.1.0",
     "pydantic>=2.0",
     "httpx>=0.24.0",
-    # TUI engine
+    # Agent library (pure-Python; create_deep_agent). The interactive TUI *engine*
+    # (the `deepagents` binary) and /auth credential storage live in the separate
+    # `deepagents-cli` package — intentionally NOT a core dep on this Termux branch.
+    # deepagents-cli pulls langgraph-cli[inmem] -> langgraph-api -> grpcio +
+    # grpcio-tools, and grpcio's pip sdist does not build on Android/bionic (Termux's
+    # own grpcio is a patched 1.81.0, which langgraph-api's `grpcio<1.81.0` pin
+    # rejects anyway). The lean `D -n` path never imports deepagents-cli (auth_store
+    # and mcp_server guard the import), so it's in the `[tui]`/`[full]` extras for
+    # glibc desktops. See docs/TERMUX.md.
     "deepagents>=0.6.1",
-    "deepagents-cli>=0.0.59",
-    # LLM providers
+    # LLM providers (HTTP + claude/copilot CLI — all Termux-compatible)
     "anthropic>=0.52.0",
     "openai>=1.0.0",
     "ollama>=0.6.0",
-    # Browser automation
-    "browser-use>=0.12.0",
-    "playwright>=1.50.0",
-    # Research tools
-    "firecrawl-py>=0.0.1",
-    "tavily-python>=0.3.0",
     # Storage & persistence
     "aiosqlite>=0.19.0",
     "sqlalchemy>=2.0.0",
+    # NOTE: langgraph-checkpoint-sqlite is intentionally NOT a core dep. Every
+    # release compatible with langgraph 1.x's checkpoint>=4.1.0 hard-requires
+    # `sqlite-vec` (for its vector store), which has no Android/bionic wheel and
+    # no sdist — making the lean Termux `pip install -e .` unresolvable. The
+    # SqliteSaver checkpointer we actually use never needs sqlite-vec, so Termux
+    # installs it with `pip install --no-deps` (setup-termux.sh) and desktop gets
+    # it via the [full] extra. persistence.py degrades to in-memory if it's absent.
     # Observability
     "langsmith>=0.1.0",
     # Utilities
     "textual>=0.20.0",
     "requests>=2.32.0",
+    # PyYAML (transitive via langchain-core) <6.0.2 cannot build against Cython 3:
+    # the sdist's metadata hook crashes with "'build_ext' has no attribute
+    # cython_sources", which is FATAL to pip's resolver. Termux has no PyYAML
+    # wheel so it builds from sdist — floor at the fixed release so the resolver
+    # never touches 6.0/6.0.1.
+    "PyYAML>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -57,6 +71,35 @@ dev = [
     "pytest-asyncio>=0.23",
     "black>=23.0",
     "ruff>=0.1.0",
+]
+# Browser automation. NOT installable/usable on Termux: Playwright's bundled
+# Chromium is a glibc ELF and won't run on Android's bionic libc. Desktop only.
+browser = [
+    "browser-use>=0.12.0",
+    "playwright>=1.50.0",
+]
+# HTTP research tools (firecrawl/tavily). Pure HTTP — work on Termux too, but
+# kept optional so the lean core install stays small.
+research = [
+    "firecrawl-py>=0.0.1",
+    "tavily-python>=0.3.0",
+]
+# Interactive TUI engine (the `deepagents` binary) + /auth credential storage.
+# Desktop/glibc only: deepagents-cli pulls langgraph-cli[inmem] -> langgraph-api ->
+# grpcio/grpcio-tools, whose pip sdist won't build on Android/bionic. The lean
+# headless `D -n` core never needs it (auth_store/mcp_server guard the import).
+tui = [
+    "deepagents-cli>=0.1.2",
+]
+# Full desktop (glibc) experience: interactive TUI + browser automation + research
+# tools + persistent SQLite checkpointing (grpcio/sqlite-vec resolve fine on glibc).
+full = [
+    "deepagents-cli>=0.1.2",
+    "browser-use>=0.12.0",
+    "playwright>=1.50.0",
+    "firecrawl-py>=0.0.1",
+    "tavily-python>=0.3.0",
+    "langgraph-checkpoint-sqlite>=3.1.0",
 ]
 
 [project.scripts]
