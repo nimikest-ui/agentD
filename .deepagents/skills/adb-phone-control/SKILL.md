@@ -41,7 +41,17 @@ Look for a line ending in `device` (not `offline` / `unauthorized` / empty).
 - **Pairing (one-time, needs a human):** `adb pair <ip>:<pairport>` then enter the
   6-digit code from *Wireless debugging → Pair device with pairing code*. **You
   cannot supply this code yourself — ask the user for it once and stop; do not loop.**
-- **Multiple devices listed:** target one explicitly with `adb -s <serial> shell …`.
+- **If `adb pair` fails** with `protocol fault (couldn't read status message): Success`
+  (known broken on some devices, notably **Samsung/OneUI** — the device's
+  wireless-debugging *pairing* service is the problem, not adb): use the **one-time USB
+  bootstrap** instead. From any computer with adb, USB-plug the phone (USB debugging on),
+  run `adb tcpip 5555`, unplug — then attach over the network with
+  `adb connect <phone-ip>:5555` (or `adb connect 127.0.0.1:5555` when adb runs on the
+  phone itself). That's classic tcpip — no TLS, no pairing. Re-run the USB `adb tcpip
+  5555` after a device reboot. The first network connect triggers an on-screen
+  "Allow USB debugging?" prompt — the user taps Allow once.
+- **Multiple devices listed** (e.g. a stray `emulator-5554`): target the phone
+  explicitly with `adb -s <serial> shell …`, e.g. `adb -s 127.0.0.1:5555 shell …`.
 
 ## ⚠️ Self-disconnect safety (read before toggling)
 
