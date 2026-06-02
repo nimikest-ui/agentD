@@ -30,7 +30,7 @@ dependencies = [
     "httpx>=0.24.0",
     # TUI engine
     "deepagents>=0.6.1",
-    "deepagents-cli>=0.0.59",
+    "deepagents-cli>=0.0.59,<0.1.0",
     # LLM providers
     "anthropic>=0.52.0",
     "openai>=1.0.0",
