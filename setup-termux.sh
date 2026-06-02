@@ -16,8 +16,8 @@ if [ -z "${PREFIX:-}" ] || ! command -v pkg >/dev/null 2>&1; then
     exit 1
 fi
 
-# Several deps (pydantic-core, jiter, tiktoken, ...) have no Termux/bionic wheels
-# on PyPI and must compile from source. Two things kill those builds on a phone:
+# Several deps (pydantic-core, jiter, cryptography, ...) have no Termux/bionic
+# wheels on PyPI and must compile from source. Two things kill those builds on a phone:
 #   1) Android suspending/killing Termux in the background -> hold a wakelock.
 #   2) Out-of-memory during parallel Rust/C++ compiles -> cap parallelism to 1.
 if command -v termux-wake-lock >/dev/null 2>&1; then
@@ -38,13 +38,11 @@ echo ">> Detected ~${_mem_gb}GB RAM -> building with ${_jobs} job(s)"
 export CARGO_BUILD_JOBS="$_jobs"
 export MAKEFLAGS="-j${_jobs}"
 
-# grpcio IS pulled transitively (the deepagents-cli / langgraph-api gRPC server
-# stack). Build it against Termux's system libs instead of its bundled copies:
-# the bundled c-ares (third_party/cares/.../ares_getenv.c) fails to compile on
-# bionic, so link the system 'c-ares' package (installed below) instead.
-export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
-export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
-export GRPC_PYTHON_BUILD_SYSTEM_CARES=1
+# NOTE: the lean core no longer pulls the gRPC stack. grpcio/grpcio-tools entered
+# only via the interactive-TUI engine (deepagents-cli -> langgraph-cli[inmem] ->
+# langgraph-api), which is now an opt-in `[tui]`/`[full]` extra (see docs/TERMUX.md).
+# grpcio's pip sdist doesn't build on bionic, so it is intentionally absent here —
+# there is no on-device grpcio build left to special-case.
 
 echo ">> Installing Termux system packages + build toolchain"
 # 'update' must succeed (needed to resolve installs); 'upgrade' is best-effort —
@@ -52,7 +50,7 @@ echo ">> Installing Termux system packages + build toolchain"
 pkg update -y && { pkg upgrade -y || echo "   (pkg upgrade reported issues; continuing)"; }
 pkg install -y \
     python nodejs-lts rust binutils clang make \
-    openssl libxml2 libxslt libjpeg-turbo zlib c-ares pkg-config git
+    openssl libxml2 libxslt libjpeg-turbo zlib pkg-config git
 
 # Prefer Termux-prebuilt wheels for heavy native deps (best-effort; names vary
 # across Termux versions, so don't fail the whole install if absent).
