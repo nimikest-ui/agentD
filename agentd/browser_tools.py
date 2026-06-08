@@ -13,7 +13,14 @@ BROWSER_USE_AVAILABLE = importlib.util.find_spec("browser_use") is not None
 
 
 def _make_browser_llm():
-    """Create a LangChain chat model for browser-use based on current TUI model config."""
+    """Create a browser-use chat model based on the current TUI model config.
+
+    browser-use's ``Agent`` requires a ``browser_use.llm.BaseChatModel`` (it reads
+    ``llm.provider`` internally) — NOT a LangChain chat model. Passing a LangChain
+    ``ChatOpenAI`` here is what raised:
+        AttributeError: 'ChatOpenAI' object has no attribute 'provider'
+    so every browser_run task failed. Use browser-use's own LLM wrappers instead.
+    """
     from agentd.config import load_deepagents_config
     config = load_deepagents_config()
     provider_spec = config.get("models", {}).get("recent", "agentd-cli:sonnet")
@@ -24,7 +31,7 @@ def _make_browser_llm():
         provider = "agentd-cli"
 
     if provider == "agentd-cli":
-        from langchain_anthropic import ChatAnthropic
+        from browser_use.llm import ChatAnthropic
         return ChatAnthropic(model="claude-haiku-4-5-20251001")
 
     providers = config.get("models", {}).get("providers", {})
@@ -41,7 +48,7 @@ def _make_browser_llm():
     if not base_url:
         base_url = _hardcoded_base_urls.get(provider)
 
-    from langchain_openai import ChatOpenAI
+    from browser_use.llm import ChatOpenAI
     return ChatOpenAI(model=model, base_url=base_url, api_key=api_key)
 
 
