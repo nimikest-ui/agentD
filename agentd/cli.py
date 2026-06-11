@@ -5,6 +5,7 @@ AgentD Command-Line Interface.
 Provides the 'D' shortcut command and 'agentd' full command.
 """
 
+import os
 import sys
 import subprocess
 import argparse
@@ -118,6 +119,14 @@ def main():
     )
 
     parser.add_argument(
+        "--voice",
+        action="store_true",
+        help="Enable voice: open the event-bus socket and run the localhost "
+             "bridge for Termux speech I/O (the bridge auto-detects the live "
+             "session's thread)."
+    )
+
+    parser.add_argument(
         "--version",
         action="version",
         version="%(prog)s 0.1.0"
@@ -154,7 +163,9 @@ def main():
     if args.auto_approve:
         cmd.append("-y")
 
-    # Resume
+    # Resume. (Voice does not pin a thread: deepagents has no --thread-id and
+    # -r <name> for a missing thread silently forks a new UUID, so the bridge
+    # auto-detects the live session's thread from the newest checkpoint.)
     if args.resume:
         cmd.append("-r")
     elif args.thread_id:
@@ -167,15 +178,42 @@ def main():
     # Add unknown args
     cmd.extend(unknown)
 
+    # Build the child environment and, for voice, start the localhost bridge.
+    env = os.environ.copy()
+    bridge_proc = None
+    if args.voice:
+        socket_path = Path.home() / ".deepagents" / ".state" / "voice-events.sock"
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
+        env["DEEPAGENTS_CLI_EXTERNAL_EVENT_SOCKET"] = "1"
+        env["DEEPAGENTS_CLI_EXTERNAL_EVENT_SOCKET_PATH"] = str(socket_path)
+        port = env.get("AGENTD_VOICE_PORT", "8787")
+        try:
+            bridge_proc = subprocess.Popen(
+                [sys.executable, "-m", "agentd.voice.bridge",
+                 "--socket", str(socket_path), "--port", str(port)],
+                env=env,
+            )
+            print(f"[voice] bridge started (pid {bridge_proc.pid}) on "
+                  f"127.0.0.1:{port}", file=sys.stderr)
+        except Exception as e:
+            print(f"[voice] failed to start bridge: {e}", file=sys.stderr)
+
     # Execute
     try:
-        sys.exit(subprocess.run(cmd).returncode)
+        sys.exit(subprocess.run(cmd, env=env).returncode)
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)
         sys.exit(130)
     except FileNotFoundError:
         print(f"Error: AgentD TUI engine not found at {tui_engine_path}", file=sys.stderr)
         sys.exit(1)
+    finally:
+        if bridge_proc is not None:
+            bridge_proc.terminate()
+            try:
+                bridge_proc.wait(timeout=5)
+            except Exception:
+                bridge_proc.kill()
 
 def main_d():
     """Entry point for 'D' shortcut with auto-approval defaults."""

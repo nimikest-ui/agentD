@@ -1,0 +1,172 @@
+#!/data/data/com.termux/files/usr/bin/env python3
+"""AgentD voice — Termux:GUI home-screen widget daemon.
+
+Owns a Termux:GUI home-screen widget: draws a 🎤 button plus a status line, and
+on tap runs the push-to-talk flow (speech-to-text → voice bridge over localhost
+TCP → text-to-speech), updating the widget with what it heard and the reply.
+
+Unlike a Termux:Widget shortcut (which just launches a script on tap), a
+Termux:GUI widget only responds while THIS daemon is running — it holds the
+connection and handles the click. Keep it alive (termux-wake-lock, and
+optionally Termux:Boot). The Kali side must be running `D --voice`.
+
+Usage:
+    python agentd-voice-gui <widget-id>
+e.g.
+    python agentd-voice-gui 110920e0-fced-4910-bdda-2b11866df898
+
+The widget id is remembered (~/.config/agentd-voice/widget_id), so later runs
+(e.g. from Termux:Boot) can omit it.
+
+Requires: pip install termuxgui ; the Termux:GUI + Termux:API apps ; python.
+"""
+import os
+import socket
+import struct
+import subprocess
+import sys
+import traceback
+
+HOST = os.environ.get("AGENTD_VOICE_HOST", "127.0.0.1")
+PORT = int(os.environ.get("AGENTD_VOICE_PORT", "8787"))
+CONNECT_TIMEOUT_S = 600  # the agent may run tools before replying
+WID_FILE = os.path.expanduser("~/.config/agentd-voice/widget_id")
+
+
+def _resolve_widget_id() -> str:
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        wid = sys.argv[1].strip()
+        try:
+            os.makedirs(os.path.dirname(WID_FILE), exist_ok=True)
+            with open(WID_FILE, "w") as fh:
+                fh.write(wid)
+        except OSError:
+            pass
+        return wid
+    try:
+        with open(WID_FILE) as fh:
+            saved = fh.read().strip()
+            if saved:
+                return saved
+    except OSError:
+        pass
+    sys.exit("usage: agentd-voice-gui <widget-id>")
+
+
+# --- audio + bridge (Termux side) -------------------------------------------
+
+
+def _speak(text: str) -> None:
+    if text.strip():
+        subprocess.run(["termux-tts-speak", text], check=False)
+
+
+def _listen() -> str:
+    res = subprocess.run(
+        ["termux-speech-to-text"], capture_output=True, text=True, check=False
+    )
+    return res.stdout.strip()
+
+
+def _recv_exact(sock: socket.socket, count: int) -> bytes:
+    buf = b""
+    while len(buf) < count:
+        chunk = sock.recv(count - len(buf))
+        if not chunk:
+            raise ConnectionError("bridge closed the connection")
+        buf += chunk
+    return buf
+
+
+def _exchange(text: str) -> str:
+    body = text.encode("utf-8")
+    with socket.create_connection((HOST, PORT), timeout=CONNECT_TIMEOUT_S) as sock:
+        sock.sendall(struct.pack(">I", len(body)) + body)
+        (length,) = struct.unpack(">I", _recv_exact(sock, 4))
+        data = _recv_exact(sock, length) if length else b""
+        return data.decode("utf-8", "replace")
+
+
+# --- widget -----------------------------------------------------------------
+
+
+def _set_size(rv, view_id: int, sp: int) -> None:
+    """Enlarge a RemoteViews text size if the binding supports it.
+
+    Home-screen widgets default to a tiny system text size. ``setTextSize``
+    takes scaled pixels (sp). Older termuxgui builds may lack it, so degrade to
+    the small default rather than crash."""
+    setter = getattr(rv, "setTextSize", None)
+    if setter is None:
+        return
+    try:
+        setter(view_id, sp)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def main() -> int:
+    try:
+        import termuxgui as tg
+    except ImportError:
+        sys.exit("termuxgui not installed — run: pip install termuxgui")
+
+    wid = _resolve_widget_id()
+    print(f"[gui] widget id: {wid}", file=sys.stderr, flush=True)
+    subprocess.run(["termux-wake-lock"], check=False)
+    try:
+        with tg.Connection() as conn:
+            print("[gui] connected to Termux:GUI", file=sys.stderr, flush=True)
+            try:
+                conn.toast("AgentD voice daemon connected", False)
+            except Exception:  # noqa: BLE001
+                pass
+            rv = tg.RemoteViews(conn)
+            print("[gui] RemoteViews created", file=sys.stderr, flush=True)
+            status = rv.addTextView()
+            button = rv.addButton()
+            print("[gui] views added", file=sys.stderr, flush=True)
+            rv.setText(button, "🎤 Talk to D")
+            rv.setText(status, "Ready")
+            _set_size(rv, button, 22)
+            _set_size(rv, status, 16)
+            print("[gui] text set", file=sys.stderr, flush=True)
+            rv.updateWidget(wid)
+            print(f"[gui] pushed layout to widget {wid} — waiting for taps",
+                  file=sys.stderr, flush=True)
+
+            def set_status(msg: str) -> None:
+                try:
+                    rv.setText(status, msg)
+                    rv.updateWidget(wid)
+                except Exception:  # noqa: BLE001 — never let UI updates kill the loop
+                    pass
+
+            for ev in conn.events():
+                ev_type = getattr(ev, "type", None)
+                print(f"[gui] event: {ev_type}", file=sys.stderr, flush=True)
+                if ev_type != tg.Event.remoteclick:
+                    continue
+                try:
+                    set_status("Listening…")
+                    heard = _listen()
+                    if not heard:
+                        set_status("Heard nothing")
+                        continue
+                    set_status(f"You: {heard}")
+                    reply = _exchange(heard)
+                    _speak(reply)
+                    set_status(f"D: {reply[:160]}" if reply.strip() else "(no reply)")
+                except OSError as exc:
+                    _speak("Voice bridge unreachable.")
+                    set_status(f"Bridge error: {exc}")
+                except Exception as exc:  # noqa: BLE001 — keep the daemon alive
+                    set_status(f"error: {exc}")
+                    traceback.print_exc()
+    finally:
+        subprocess.run(["termux-wake-unlock"], check=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

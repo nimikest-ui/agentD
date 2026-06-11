@@ -1,0 +1,75 @@
+#!/data/data/com.termux/files/usr/bin/env python3
+"""AgentD voice push-to-talk (Termux side).
+
+Records one spoken turn, sends the transcript to the Kali-side voice bridge
+over localhost TCP, then speaks the reply. Bind this to a Termux:Widget button
+or a notification action.
+
+Requires Termux:API: termux-speech-to-text, termux-tts-speak, termux-toast.
+The Kali side must be running `D --voice` (which starts the bridge).
+"""
+import os
+import socket
+import struct
+import subprocess
+import sys
+
+HOST = os.environ.get("AGENTD_VOICE_HOST", "127.0.0.1")
+PORT = int(os.environ.get("AGENTD_VOICE_PORT", "8787"))
+CONNECT_TIMEOUT_S = 300  # the agent may run tools before replying
+
+
+def _toast(text: str) -> None:
+    subprocess.run(["termux-toast", "-s", text], check=False)
+
+
+def _speak(text: str) -> None:
+    if text.strip():
+        subprocess.run(["termux-tts-speak", text], check=False)
+
+
+def _listen() -> str:
+    result = subprocess.run(
+        ["termux-speech-to-text"], capture_output=True, text=True, check=False
+    )
+    return result.stdout.strip()
+
+
+def _recv_exact(sock: socket.socket, count: int) -> bytes:
+    buf = b""
+    while len(buf) < count:
+        chunk = sock.recv(count - len(buf))
+        if not chunk:
+            raise ConnectionError("bridge closed the connection")
+        buf += chunk
+    return buf
+
+
+def _exchange(text: str) -> str:
+    body = text.encode("utf-8")
+    with socket.create_connection((HOST, PORT), timeout=CONNECT_TIMEOUT_S) as sock:
+        sock.sendall(struct.pack(">I", len(body)) + body)
+        (length,) = struct.unpack(">I", _recv_exact(sock, 4))
+        data = _recv_exact(sock, length) if length else b""
+        return data.decode("utf-8", "replace")
+
+
+def main() -> int:
+    _toast("Listening…")
+    text = _listen()
+    if not text:
+        _toast("Heard nothing")
+        return 0
+    _toast(f"You: {text}")
+    try:
+        reply = _exchange(text)
+    except OSError as exc:
+        _speak("Voice bridge unreachable.")
+        _toast(f"Bridge error: {exc}")
+        return 1
+    _speak(reply)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
