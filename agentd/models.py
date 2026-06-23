@@ -15,9 +15,30 @@ import shutil
 import subprocess
 import threading
 import time
+from functools import lru_cache
 from typing import Any, Iterator, Optional
 
 import httpx
+
+
+@lru_cache(maxsize=1)
+def _find_claude_binary() -> str:
+    """Resolve claude CLI path once at import time (avoids blockbuster blocking)."""
+    return shutil.which("claude") or "/root/.local/bin/claude"
+
+
+@lru_cache(maxsize=1)
+def _find_copilot_binary() -> str:
+    """Resolve copilot CLI path once at import time (avoids blockbuster blocking)."""
+    candidates = [
+        shutil.which("copilot"),
+        shutil.which("copilot-cli"),
+        "/usr/local/bin/copilot",
+        "/root/.local/bin/copilot",
+        "/root/.local/share/pipx/venvs/deepagents/bin/copilot",
+        "/usr/bin/copilot",
+    ]
+    return next((p for p in candidates if p), "/usr/bin/copilot")
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
@@ -62,6 +83,7 @@ KIMI_MODELS = [
 XIOMIMIMO_PROVIDER = "xiomimimo"
 XIOMIMIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
 XIOMIMIMO_MODELS = [
+    "mimo-v2.5-pro-ultraspeed",
     "mimo-v2.5-pro",
     "mimo-v2.5",
     "mimo-v2.5-tts",
@@ -71,6 +93,22 @@ XIOMIMIMO_MODELS = [
     "mimo-v2-omni",
     "mimo-v2-tts",
     "mimo-v2-flash",
+]
+
+GROQ_PROVIDER = "groq"
+GROQ_DEFAULT_MODEL = "mixtral-8x7b-32768"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_MODELS = [
+    # Latest models (2025)
+    "deepseek-r1-distill-llama-70b",
+    "mixtral-8x7b-32768",
+    # Llama models
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile",
+    "llama-3.1-8b-instant",
+    # Tool use capable
+    "llama3-groq-70b-tool-use-preview",
+    "llama3-groq-8b-tool-use-preview",
 ]
 
 OLLAMA_PROVIDER = "ollama"
@@ -157,8 +195,7 @@ class AgentDModel(BaseChatModel):
 
     def __init__(self, **data):
         if "cli_binary" not in data or not data["cli_binary"]:
-            binary = shutil.which("claude") or "/root/.local/bin/claude"
-            data["cli_binary"] = binary
+            data["cli_binary"] = _find_claude_binary()
 
         # "claude-cli" is a provider alias, not a real model name — fall back to default
         if data.get("model") in ("claude-cli", "agentd-cli", ""):
@@ -491,17 +528,7 @@ class CopilotModel(AgentDModel):
 
     def __init__(self, **data):
         if "cli_binary" not in data or not data["cli_binary"]:
-            # Prefer system-installed copilot, then common install locations
-            candidates = [
-                shutil.which("copilot"),
-                shutil.which("copilot-cli"),
-                "/usr/local/bin/copilot",
-                "/root/.local/bin/copilot",
-                "/root/.local/share/pipx/venvs/deepagents/bin/copilot",
-                "/usr/bin/copilot",
-            ]
-            binary = next((p for p in candidates if p), "/usr/bin/copilot")
-            data["cli_binary"] = binary
+            data["cli_binary"] = _find_copilot_binary()
 
         try:
             super().__init__(**data)
@@ -1627,6 +1654,331 @@ class XiaomiModel(BaseChatModel):
         return _messages_to_role_dicts(messages)
 
 
+class GroqModel(BaseChatModel):
+    """Groq API-backed chat model.
+
+    Uses the OpenAI-compatible API at https://api.groq.com/openai/v1.
+    Requires GROQ_API_KEY (set via env var or ~/.deepagents/.state/auth.json).
+    """
+
+    model: str = GROQ_DEFAULT_MODEL
+    base_url: str = GROQ_BASE_URL
+    api_key: str = ""
+    call_timeout: int = 300
+
+    def __init__(self, **data):
+        # Defer credential loading to avoid blocking during __init__
+        super().__init__(**data)
+
+    @property
+    def _llm_type(self) -> str:
+        return "groq"
+
+    def bind_tools(self, tools: Any, *, tool_choice: Any = None, **kwargs: Any):
+        """Bind tools using ChatOpenAI (OpenAI-compatible API)."""
+        from langchain_openai import ChatOpenAI
+        api_key = self.api_key or os.environ.get("GROQ_API_KEY", "placeholder")
+        llm = ChatOpenAI(model=self.model, base_url=self.base_url, api_key=api_key)
+        return llm.bind_tools(tools, tool_choice=tool_choice, **kwargs)
+
+    def _get_ls_params(self, **kwargs: Any) -> dict[str, str]:
+        return {"ls_provider": GROQ_PROVIDER, "ls_model_name": self.model}
+
+    def _build_headers(self) -> dict[str, str]:
+        """Build HTTP headers for Groq API."""
+        return _bearer_headers(self.api_key)
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Groq API (sync)."""
+        return self._generate_sync(messages, stop, run_manager, **kwargs)
+
+    def _generate_sync(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Internal sync implementation of _generate."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("GROQ_API_KEY") or ""
+
+        if not self.api_key:
+            raise RuntimeError(
+                f"[groq/{self.model}] Authentication failed: GROQ_API_KEY not found. "
+                f"Set it via environment variable GROQ_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Groq error: {data['error']}")
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not content:
+                raise RuntimeError("Empty response from Groq API")
+
+            ai_message = AIMessage(content=content)
+            return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Groq API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Groq API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Groq API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Groq API at {self.base_url}. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Groq API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Groq API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Groq API error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """Generate a response using Groq API (async)."""
+        # Lazy load credential via thread to avoid blocking the event loop
+        if not self.api_key:
+            import asyncio
+            from agentd.auth_store import get_credential
+            self.api_key = await asyncio.to_thread(get_credential, "GROQ_API_KEY") or ""
+
+        if not self.api_key:
+            raise RuntimeError(
+                f"[groq/{self.model}] Authentication failed: GROQ_API_KEY not found. "
+                f"Set it via environment variable GROQ_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": False,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            async with httpx.AsyncClient(timeout=self.call_timeout) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Groq error: {data['error']}")
+
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if not content:
+                    raise RuntimeError("Empty response from Groq API")
+
+                ai_message = AIMessage(content=content)
+                return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Groq API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Groq API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Groq API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Groq API. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Groq API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Groq API returned invalid JSON. "
+                f"The service may be experiencing issues. Error: {e}"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Groq API error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    def _stream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> Iterator[ChatGenerationChunk]:
+        """Stream response tokens from Groq API."""
+        # Lazy load credential if not already set
+        if not self.api_key:
+            from agentd.auth_store import get_credential
+            self.api_key = get_credential("GROQ_API_KEY") or ""
+
+        if not self.api_key:
+            raise RuntimeError(
+                f"[groq/{self.model}] Authentication failed: GROQ_API_KEY not found. "
+                f"Set it via environment variable GROQ_API_KEY or use /auth command in TUI."
+            )
+
+        messages_dicts = self._convert_messages_to_dict(messages)
+
+        payload = {
+            "model": self.model,
+            "messages": messages_dicts,
+            "stream": True,
+        }
+
+        url = f"{self.base_url.rstrip('/')}/chat/completions"
+        headers = self._build_headers()
+
+        try:
+            with httpx.stream(
+                "POST",
+                url,
+                json=payload,
+                headers=headers,
+                timeout=self.call_timeout,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.strip():
+                        try:
+                            if line.startswith("data: "):
+                                line = line[6:]
+                            if line.strip() == "[DONE]":
+                                break
+                            data = json.loads(line)
+
+                            if "error" in data:
+                                raise RuntimeError(f"Groq error: {data['error']}")
+
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                chunk = ChatGenerationChunk(
+                                    message=AIMessageChunk(content=content)
+                                )
+                                if run_manager:
+                                    run_manager.on_llm_new_token(content, chunk=chunk)
+                                yield chunk
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            text = e.response.text
+            if status == 401 or status == 403:
+                raise RuntimeError(
+                    f"Groq API authentication failed (HTTP {status}). "
+                    f"Your API key may be invalid or expired. "
+                    f"Run '/auth' in TUI to update your credentials."
+                )
+            elif status == 429:
+                raise RuntimeError(
+                    f"Groq API rate limit exceeded (HTTP {status}). "
+                    f"Please wait a moment and try again."
+                )
+            else:
+                raise RuntimeError(
+                    f"Groq API error (HTTP {status}): {text}"
+                )
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                f"Cannot connect to Groq API. "
+                f"Check your network connection. "
+                f"Error: {str(e)[:100]}"
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                f"Groq API request timed out after {self.call_timeout}s. "
+                f"The service may be slow or overloaded. Try again in a moment."
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Groq streaming error: {type(e).__name__}: {str(e)[:200]}"
+            )
+
+    @staticmethod
+    def _convert_messages_to_dict(messages: list[BaseMessage]) -> list[dict]:
+        """Convert LangChain messages to OpenAI-compatible format."""
+        return _messages_to_role_dicts(messages)
+
+
 def get_ollama_models() -> list[tuple[str, str]]:
     """Fetch available models from Ollama cloud or local instance.
 
@@ -1737,8 +2089,26 @@ try:
     register_model("mimo-v2-tts", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2 TTS (Speech)",
                    description="Text-to-speech synthesis. Audio generation from text.", cost_tier=2)
     # V2.5 series (April 2026) - moderate cost
+    register_model("mimo-v2.5-pro-ultraspeed", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro Ultraspeed",
+                   description="High-speed variant of V2.5 Pro. Optimized for faster inference.", cost_tier=3)
     register_model("mimo-v2.5-pro", XIOMIMIMO_PROVIDER, display="Xiaomi MiMo V2.5 Pro",
                    description="Latest professional model. Matches frontier benchmarks at lower cost.", cost_tier=3, default_model=XIOMIMIMO_DEFAULT_MODEL)
+
+    # Groq models (fast inference, cost-effective)
+    register_model("deepseek-r1-distill-llama-70b", GROQ_PROVIDER, display="Groq: DeepSeek R1 Distill Llama 70B",
+                   description="Latest reasoning model distilled to Llama. Fast inference on Groq.", cost_tier=2)
+    register_model("mixtral-8x7b-32768", GROQ_PROVIDER, display="Groq: Mixtral 8x7B",
+                   description="Mixture of experts model. Fast & capable. 32k context.", cost_tier=2, default_model=GROQ_DEFAULT_MODEL)
+    register_model("llama-3.3-70b-versatile", GROQ_PROVIDER, display="Groq: Llama 3.3 70B",
+                   description="Latest Llama model. Versatile & capable. Optimized for Groq speed.", cost_tier=2)
+    register_model("llama-3.1-70b-versatile", GROQ_PROVIDER, display="Groq: Llama 3.1 70B",
+                   description="Strong reasoning & coding. Versatile capabilities.", cost_tier=2)
+    register_model("llama-3.1-8b-instant", GROQ_PROVIDER, display="Groq: Llama 3.1 8B",
+                   description="Lightweight & fast. Best for quick responses & real-time tasks.", cost_tier=1)
+    register_model("llama3-groq-70b-tool-use-preview", GROQ_PROVIDER, display="Groq: Llama 3 70B Tool Use",
+                   description="Optimized for tool/function calling. Parallel tool invocation support.", cost_tier=2)
+    register_model("llama3-groq-8b-tool-use-preview", GROQ_PROVIDER, display="Groq: Llama 3 8B Tool Use",
+                   description="Lightweight tool-use model. Fast tool execution.", cost_tier=1)
 
     # Register Ollama models (always register common models, add dynamic ones if available)
     registered_ollama = set()

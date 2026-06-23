@@ -15,16 +15,18 @@ from agentd.models import (
     KimiModel,
     OllamaModel,
     XiaomiModel,
+    GroqModel,
     AGENTD_CLI_PROVIDER,
     COPILOT_CLI_PROVIDER,
     KIMI_PROVIDER,
     OLLAMA_PROVIDER,
     XIOMIMIMO_PROVIDER,
+    GROQ_PROVIDER,
 )
 from agentd.graph import build_graph
 from agentd.persistence import make_store
 
-__all__ = ["Agent", "AgentDModel", "KimiModel", "XiaomiModel", "AGENTD_CLI_PROVIDER", "KIMI_PROVIDER", "XIOMIMIMO_PROVIDER"]
+__all__ = ["Agent", "AgentDModel", "KimiModel", "XiaomiModel", "GroqModel", "AGENTD_CLI_PROVIDER", "KIMI_PROVIDER", "XIOMIMIMO_PROVIDER", "GROQ_PROVIDER"]
 
 
 def _config(thread_id: str) -> RunnableConfig:
@@ -34,9 +36,13 @@ def _config(thread_id: str) -> RunnableConfig:
 def _detect_provider(model: str) -> str:
     """Detect provider from model name or return default."""
     import os
-    from agentd.models import OLLAMA_COMMON_MODELS
+    from agentd.models import OLLAMA_COMMON_MODELS, GROQ_MODELS
 
     model_lower = model.lower()
+
+    # Groq models
+    if any(x in model_lower for x in ["groq", "deepseek-r1-distill", "mixtral-8x7b"]):
+        return GROQ_PROVIDER
 
     # Kimi/Moonshot models
     if any(x in model_lower for x in ["kimi", "moonshot"]):
@@ -53,6 +59,10 @@ def _detect_provider(model: str) -> str:
     # Check if it's a known Ollama common model (e.g., llama2, mistral, phi)
     if model in OLLAMA_COMMON_MODELS:
         return OLLAMA_PROVIDER
+
+    # Check if it's a known Groq model
+    if model in GROQ_MODELS:
+        return GROQ_PROVIDER
 
     # Check environment variable
     env_provider = os.environ.get("AGENTD_PROVIDER", AGENTD_CLI_PROVIDER)
@@ -82,6 +92,8 @@ class Agent:
                 return KimiModel(model=model_name, **kwargs)
             elif provider == XIOMIMIMO_PROVIDER:
                 return XiaomiModel(model=model_name, **kwargs)
+            elif provider == GROQ_PROVIDER:
+                return GroqModel(model=model_name, **kwargs)
             elif provider == OLLAMA_PROVIDER:
                 return OllamaModel(model=model_name, **kwargs)
             else:

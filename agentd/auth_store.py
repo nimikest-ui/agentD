@@ -4,6 +4,7 @@ Handles credential storage for:
 - OLLAMA_API_KEY (for Ollama Cloud models at ollama.com)
 - MOONSHOT_API_KEY (for Kimi models)
 - XIOMIMIMO_API_KEY (for Xiaomi MiMo models)
+- GROQ_API_KEY (for Groq models)
 - LANGSMITH_API_KEY (for LangSmith tracing and observability)
 - Other provider keys
 
@@ -30,6 +31,7 @@ except ImportError:
 _PROVIDER_MAP = {
     "MOONSHOT_API_KEY": "kimi",
     "XIOMIMIMO_API_KEY": "xiomimimo",
+    "GROQ_API_KEY": "groq",
     "OLLAMA_API_KEY": "ollama",
     "LANGSMITH_API_KEY": "langsmith",
     "FIRECRAWL_API_KEY": "firecrawl",
@@ -140,6 +142,7 @@ def save_credentials(creds: Dict[str, str]) -> None:
 OLLAMA_API_KEY = "OLLAMA_API_KEY"
 MOONSHOT_API_KEY = "MOONSHOT_API_KEY"
 XIOMIMIMO_API_KEY = "XIOMIMIMO_API_KEY"
+GROQ_API_KEY = "GROQ_API_KEY"
 LANGSMITH_API_KEY = "LANGSMITH_API_KEY"
 FIRECRAWL_API_KEY = "FIRECRAWL_API_KEY"
 
@@ -148,6 +151,7 @@ SUPPORTED_CREDENTIALS = {
     OLLAMA_API_KEY: "Ollama Cloud API Key (from ollama.com/settings/keys)",
     MOONSHOT_API_KEY: "Kimi/Moonshot API Key (for Chinese LLM support)",
     XIOMIMIMO_API_KEY: "Xiaomi MiMo API Key (from xiaomimimo.com/settings/keys)",
+    GROQ_API_KEY: "Groq API Key (from console.groq.com/keys)",
     LANGSMITH_API_KEY: "LangSmith API Key (for tracing & observability at smith.langchain.com)",
     FIRECRAWL_API_KEY: "Firecrawl API Key (from firecrawl.dev for web scraping/search)",
 }
