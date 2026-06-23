@@ -197,26 +197,29 @@ def _latest_final_ai(db_path: Path, thread_id: str) -> tuple[object, str]:
     return None, ""
 
 
-async def _handle_turn(text: str, socket_path: Path, db_path: Path) -> str:
-    # Baseline before injecting so we can tell this turn's reply apart from any
-    # earlier one (dedupe by the reply's unique write key, not just row growth).
-    base_rowid = _max_rowid(db_path)
-    base_thread = _newest_thread(db_path)
-    base_key = _latest_final_ai(db_path, base_thread)[0] if base_thread else None
+async def _handle_turn(
+    text: str, socket_path: Path, db_path: Path, turn_lock: asyncio.Lock
+) -> str:
+    async with turn_lock:
+        # Baseline before injecting so we can tell this turn's reply apart from any
+        # earlier one (dedupe by the reply's unique write key, not just row growth).
+        base_rowid = _max_rowid(db_path)
+        base_thread = _newest_thread(db_path)
+        base_key = _latest_final_ai(db_path, base_thread)[0] if base_thread else None
 
-    await _inject_prompt(socket_path, text)
+        await _inject_prompt(socket_path, text)
 
-    deadline = time.monotonic() + REPLY_TIMEOUT_S
-    while time.monotonic() < deadline:
-        await asyncio.sleep(POLL_INTERVAL_S)
-        if _max_rowid(db_path) <= base_rowid:
-            continue  # the TUI hasn't recorded anything for this turn yet
-        thread = _newest_thread(db_path)
-        if not thread:
-            continue
-        key, reply = _latest_final_ai(db_path, thread)
-        if reply.strip() and key is not None and key != base_key:
-            return reply
+        deadline = time.monotonic() + REPLY_TIMEOUT_S
+        while time.monotonic() < deadline:
+            await asyncio.sleep(POLL_INTERVAL_S)
+            if _max_rowid(db_path) <= base_rowid:
+                continue  # the TUI hasn't recorded anything for this turn yet
+            thread = _newest_thread(db_path)
+            if not thread:
+                continue
+            key, reply = _latest_final_ai(db_path, thread)
+            if reply.strip() and key is not None and key != base_key:
+                return reply
     raise TimeoutError(f"no reply within {REPLY_TIMEOUT_S:.0f}s")
 
 
@@ -228,6 +231,7 @@ async def _on_client(
     writer: asyncio.StreamWriter,
     socket_path: Path,
     db_path: Path,
+    turn_lock: asyncio.Lock,
 ) -> None:
     peer = writer.get_extra_info("peername")
     try:
@@ -237,7 +241,7 @@ async def _on_client(
             return
         _log(f"heard: {text!r}")
         try:
-            reply = await _handle_turn(text.strip(), socket_path, db_path)
+            reply = await _handle_turn(text.strip(), socket_path, db_path, turn_lock)
             _log(f"reply: {reply[:80]!r}{'…' if len(reply) > 80 else ''}")
         except Exception as exc:  # noqa: BLE001 — surface every failure to the speaker
             reply = f"Voice bridge error: {exc}"
@@ -252,8 +256,9 @@ async def _on_client(
 
 
 async def serve(host: str, port: int, socket_path: Path, db_path: Path) -> None:
+    turn_lock = asyncio.Lock()
     server = await asyncio.start_server(
-        lambda r, w: _on_client(r, w, socket_path, db_path), host, port
+        lambda r, w: _on_client(r, w, socket_path, db_path, turn_lock), host, port
     )
     addrs = ", ".join(str(s.getsockname()) for s in server.sockets or [])
     _log(f"listening on {addrs} (auto-detect active thread)")

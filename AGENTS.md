@@ -6,10 +6,79 @@ in **[CLAUDE.md](CLAUDE.md)**, the single source of truth.
 
 Please read [CLAUDE.md](CLAUDE.md).
 
+## Setup
+
+```bash
+pip install -e ".[dev]"        # Dev install (editable, with dev deps)
+playwright install chromium     # Browser automation
+```
+
+## Dev Commands
+
+```bash
+pytest tests/                   # Run tests
+ruff check .                    # Lint (default config)
+black .                         # Format (default config)
+python -m build                 # Build distribution
+```
+
+- `ruff` and `black` have no config files — they run with defaults
+- `asyncio_mode = "auto"` is set in `pyproject.toml`; async tests auto-detected
+- Tests must run from package root, not inside `tests/`
+
+## Architecture
+
+**Entrypoints:**
+- `D` → `agentd.cli:main_d` — TUI shortcut, auto-inserts `--auto-approve`
+- `agentd` → `agentd.cli:main` — standard CLI
+
+**Core flow:**
+```
+cli.py → core.py (Agent) → graph.py (StateGraph) → models.py (provider detection)
+```
+
+**Key files:**
+| File | Purpose |
+|------|---------|
+| `agentd/cli.py` | CLI entrypoints, TUI engine discovery, voice bridge launch |
+| `agentd/core.py` | `Agent` class — LangGraph graph wrapper with invoke/stream |
+| `agentd/graph.py` | `StateGraph` definition with single LLM node, memory injection |
+| `agentd/models.py` | 5 model classes: AgentDModel (Claude CLI), CopilotModel, OllamaModel, KimiModel, XiaomiModel |
+| `agentd/memory.py` | Two-layer memory: global JSON file + thread-scoped LangGraph state |
+| `agentd/persistence.py` | SQLite checkpointer + InMemoryStore factories |
+| `agentd/browser_tools.py` | Browser-use + Firecrawl web research integration |
+| `agentd/mcp_server.py` | MCP server exposing browser/scrape/search tools |
+| `agentd/tracing.py` | LangSmith tracing configuration |
+
+## Conventions & Quirks
+
+- **Circular imports**: `graph.py` imports from `core.py` inside function bodies. Never move these to module level.
+- **Lazy credential loading**: Model objects construct without API keys; keys load at call time. Don't add eager validation.
+- **No `conftest.py`**: Fixtures are defined locally in test files. New test files need their own fixtures.
+- **`D` command auto-inserts `--auto-approve`**: This is by design for the shortcut command.
+- **No lint config files**: `ruff` and `black` run with defaults. No `[tool.ruff]` or `[tool.black]` in pyproject.toml.
+
+## Environment Variables
+
+**Core:**
+- `LANGSMITH_API_KEY`, `LANGSMITH_TRACING`, `LANGSMITH_PROJECT` — LangSmith tracing
+- `ANTHROPIC_API_KEY` — optional, for Anthropic SDK wrapper
+
+**Provider-specific:**
+- `MOONSHOT_API_KEY` — Kimi/Moonshot
+- `XIOMIMIMO_API_KEY` — Xiaomi MiMo
+- `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` — Ollama
+- `FIRECRAWL_API_KEY` — Firecrawl web scraping
+
+**Override:**
+- `AGENTD_PROVIDER` — forces provider selection (bypasses auto-detection)
+
+**Credential resolution order:** env var first, then `~/.deepagents/.state/auth.json`
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **agentD** (1029 symbols, 1660 relationships, 43 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **agentD** (1138 symbols, 1832 relationships, 52 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
